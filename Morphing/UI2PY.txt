@@ -1,0 +1,10 @@
+Try:
+
+/package/eda/anaconda3/bin/pyuic5 MorphingGUI.ui -o MorphingGUI.py
+pyuic5 -o <filename>.ui <filename>.py
+/package/eda/anaconda3/pyuic5
+
+...
+
+This line worked! Enter it in Terminal (not the Python Console).
+C:\Users\xzomb\PycharmProjects\Personal\venv\Scripts\pyuic5 C:\Users\xzomb\PycharmProjects\Personal\Morphing\MorphingGUI.ui -o C:\Users\xzomb\PycharmProjects\Personal\Morphing\MorphingGUI.py
