@@ -59,6 +59,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.confirmed_right_points_history = []  # Logging for CTRL + Y (REDO)
         self.startingImagePath = ''
         self.endingImagePath = ''
+        self.startingTextPath = ''
+        self.startingTextCorePath = ''
+        self.endingTextPath = ''
+        self.endingTextCorePath = ''
         self.startingText = []
         self.endingText = []
         self.leftUpdate = 0
@@ -845,13 +849,11 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 for x in leftFile:
                     self.startingText.append(x.split())
                     self.chosen_left_points.append(QtCore.QPoint(int(float(x.split()[0])), int(float(x.split()[1]))))
-                    #self.update()
         elif os.path.isfile(self.startingTextPath):
             with open(self.startingTextPath, "r") as leftFile:
                 for x in leftFile:
                     self.startingText.append(x.split())
                     self.chosen_left_points.append(QtCore.QPoint(int(float(x.split()[0])), int(float(x.split()[1]))))
-                    #self.update()
 
         if os.path.isfile(self.startingTextPath):
             os.remove(self.startingTextPath)
