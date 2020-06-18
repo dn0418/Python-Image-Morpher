@@ -5,6 +5,7 @@
 #   Date:       04/05/19
 #######################################################
 
+import multiprocessing
 import os
 import sys
 import imageio
@@ -131,6 +132,7 @@ class Morpher:
         yRange = np.arange(0, self.leftImage.shape[0], 1)
         leftInterpolation = RectBivariateSpline(yRange, xRange, self.leftImage)
         rightInterpolation = RectBivariateSpline(yRange, xRange, self.rightImage)
+
         for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles):
             targetTriangle = Triangle((leftTriangle.vertices + (rightTriangle.vertices - leftTriangle.vertices) * alpha))
             tempLeftMatrix = np.array([leftTriangle.vertices[0][0], leftTriangle.vertices[0][1], 1, 0, 0, 0, 0, 0, 0,
@@ -171,7 +173,7 @@ class Morpher:
 
 
 if __name__ == "__main__":
-    #with PyCallGraph(output=GraphvizOutput()):
+    with PyCallGraph(output=GraphvizOutput()):
         begin = time.time()
         leftPointFilePath = 'C:/Users/xzomb/PycharmProjects/Personal/Morphing/Images_Points/StartGray1.txt'
         rightPointFilePath = 'C:/Users/xzomb/PycharmProjects/Personal/Morphing/Images_Points/EndGray1.txt'
