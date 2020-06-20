@@ -4,7 +4,7 @@ This is my personal project that began as a final assignment in Purdue Universit
 What began in Spring 2019 (detailed in <b>readme_general.pdf</b>, <b>readme_phase_1.pdf</b>, and <b>readme_phase_2.pdf</b>) required the usage of <b>delaunay triangulation</b>, <b>projective/affine transformatio</b>n, <b>application of projections through matrices</b>, <b>masking,</b> and <b>alpha blending</b> - all of which are still maintained with this project - in order to accomplish image morphing. A custom GUI was additionally required in order for users to place their own points to be used with the matrix math involved with this program.
 
 <p align="center">
-  <img width="469" height="470" src="https://i.imgur.com/BJkzrfL.jpg">
+  <img width="469" height="470" src="https://i.imgur.com/BJkzrfL.jpg"><br>
   GUI Required for ECE 36400
 </p>
 
