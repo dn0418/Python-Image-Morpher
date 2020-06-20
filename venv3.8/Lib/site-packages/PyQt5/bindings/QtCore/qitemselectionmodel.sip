@@ -94,10 +94,30 @@ public:
     virtual ~QItemSelectionModel();
     QModelIndex currentIndex() const;
     bool isSelected(const QModelIndex &index) const;
+%If (- Qt_5_15_0)
     bool isRowSelected(int row, const QModelIndex &parent) const;
+%End
+%If (Qt_5_15_0 -)
+    bool isRowSelected(int row, const QModelIndex &parent = QModelIndex()) const;
+%End
+%If (- Qt_5_15_0)
     bool isColumnSelected(int column, const QModelIndex &parent) const;
+%End
+%If (Qt_5_15_0 -)
+    bool isColumnSelected(int column, const QModelIndex &parent = QModelIndex()) const;
+%End
+%If (- Qt_5_15_0)
     bool rowIntersectsSelection(int row, const QModelIndex &parent) const;
+%End
+%If (Qt_5_15_0 -)
+    bool rowIntersectsSelection(int row, const QModelIndex &parent = QModelIndex()) const;
+%End
+%If (- Qt_5_15_0)
     bool columnIntersectsSelection(int column, const QModelIndex &parent) const;
+%End
+%If (Qt_5_15_0 -)
+    bool columnIntersectsSelection(int column, const QModelIndex &parent = QModelIndex()) const;
+%End
     QModelIndexList selectedIndexes() const;
     const QItemSelection selection() const;
 %If (Qt_5_5_0 -)

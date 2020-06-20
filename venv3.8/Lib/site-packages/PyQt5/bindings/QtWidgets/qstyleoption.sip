@@ -447,6 +447,25 @@ public:
 };
 
 QFlags<QStyleOptionTab::CornerWidget> operator|(QStyleOptionTab::CornerWidget f1, QFlags<QStyleOptionTab::CornerWidget> f2);
+%If (Qt_5_15_0 -)
+
+class QStyleOptionTabV4 : QStyleOptionTab
+{
+%TypeHeaderCode
+#include <qstyleoption.h>
+%End
+
+public:
+    enum StyleOptionVersion
+    {
+        Version,
+    };
+
+    QStyleOptionTabV4();
+    int tabIndex;
+};
+
+%End
 
 class QStyleOptionProgressBar : QStyleOption
 {

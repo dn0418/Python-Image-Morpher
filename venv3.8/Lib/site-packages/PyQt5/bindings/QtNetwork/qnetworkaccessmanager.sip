@@ -157,4 +157,10 @@ public:
 %If (Qt_5_14_0 -)
     void setAutoDeleteReplies(bool autoDelete);
 %End
+%If (Qt_5_15_0 -)
+    int transferTimeout() const;
+%End
+%If (Qt_5_15_0 -)
+    void setTransferTimeout(int timeout = QNetworkRequest::TransferTimeoutConstant::DefaultTransferTimeoutConstant);
+%End
 };

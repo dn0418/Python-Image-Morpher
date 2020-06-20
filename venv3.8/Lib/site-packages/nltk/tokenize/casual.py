@@ -2,7 +2,7 @@
 #
 # Natural Language Toolkit: Twitter Tokenizer
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Author: Christopher Potts <cgpotts@stanford.edu>
 #         Ewan Klein <ewan@inf.ed.ac.uk> (modifications)
 #         Pierpaolo Pantone <> (modifications)
@@ -35,11 +35,8 @@ domains and tasks. The basic logic is this:
 
 ######################################################################
 
-from __future__ import unicode_literals
-import re
-
-from six import int2byte, unichr
-from six.moves import html_entities
+import regex  # https://github.com/nltk/nltk/issues/2409
+import html
 
 ######################################################################
 # The following strings are components in the regular expression
@@ -166,17 +163,17 @@ REGEXPS = (
 ######################################################################
 # This is the core tokenizing regex:
 
-WORD_RE = re.compile(r"""(%s)""" % "|".join(REGEXPS), re.VERBOSE | re.I | re.UNICODE)
+WORD_RE = regex.compile(r"""(%s)""" % "|".join(REGEXPS), regex.VERBOSE | regex.I | regex.UNICODE)
 
 # WORD_RE performs poorly on these patterns:
-HANG_RE = re.compile(r'([^a-zA-Z0-9])\1{3,}')
+HANG_RE = regex.compile(r"([^a-zA-Z0-9])\1{3,}")
 
 # The emoticon string gets its own regex so that we can preserve case for
 # them as needed:
-EMOTICON_RE = re.compile(EMOTICONS, re.VERBOSE | re.I | re.UNICODE)
+EMOTICON_RE = regex.compile(EMOTICONS, regex.VERBOSE | regex.I | regex.UNICODE)
 
 # These are for regularizing HTML entities to Unicode:
-ENT_RE = re.compile(r'&(#?(x?))([^&;\s]+);')
+ENT_RE = regex.compile(r"&(#?(x?))([^&;\s]+);")
 
 
 ######################################################################
@@ -184,15 +181,15 @@ ENT_RE = re.compile(r'&(#?(x?))([^&;\s]+);')
 ######################################################################
 
 
-def _str_to_unicode(text, encoding=None, errors='strict'):
+def _str_to_unicode(text, encoding=None, errors="strict"):
     if encoding is None:
-        encoding = 'utf-8'
+        encoding = "utf-8"
     if isinstance(text, bytes):
         return text.decode(encoding, errors)
     return text
 
 
-def _replace_html_entities(text, keep=(), remove_illegal=True, encoding='utf-8'):
+def _replace_html_entities(text, keep=(), remove_illegal=True, encoding="utf-8"):
     """
     Remove entities from text by converting them to their
     corresponding unicode character.
@@ -233,17 +230,17 @@ def _replace_html_entities(text, keep=(), remove_illegal=True, encoding='utf-8')
                 # to bytes 80-9F in the Windows-1252 encoding. For more info
                 # see: https://en.wikipedia.org/wiki/ISO/IEC_8859-1#Similar_character_sets
                 if 0x80 <= number <= 0x9F:
-                    return int2byte(number).decode('cp1252')
+                    return bytes((number,)).decode("cp1252")
             except ValueError:
                 number = None
         else:
             if entity_body in keep:
                 return match.group(0)
             else:
-                number = html_entities.name2codepoint.get(entity_body)
+                number = html.entities.name2codepoint.get(entity_body)
         if number is not None:
             try:
-                return unichr(number)
+                return chr(number)
             except ValueError:
                 pass
 
@@ -294,7 +291,7 @@ class TweetTokenizer:
         if self.reduce_len:
             text = reduce_lengthening(text)
         # Shorten problematic sequences of characters
-        safe_text = HANG_RE.sub(r'\1\1\1', text)
+        safe_text = HANG_RE.sub(r"\1\1\1", text)
         # Tokenize:
         words = WORD_RE.findall(safe_text)
         # Possibly alter the case, but avoid changing emoticons like :D into :d:
@@ -315,7 +312,7 @@ def reduce_lengthening(text):
     Replace repeated character sequences of length 3 or greater with sequences
     of length 3.
     """
-    pattern = re.compile(r"(.)\1{2,}")
+    pattern = regex.compile(r"(.)\1{2,}")
     return pattern.sub(r"\1\1\1", text)
 
 
@@ -323,11 +320,11 @@ def remove_handles(text):
     """
     Remove Twitter username handles from text.
     """
-    pattern = re.compile(
+    pattern = regex.compile(
         r"(?<![A-Za-z0-9_!@#\$%&*])@(([A-Za-z0-9_]){20}(?!@))|(?<![A-Za-z0-9_!@#\$%&*])@(([A-Za-z0-9_]){1,19})(?![A-Za-z0-9_]*@)"
     )
     # Substitute handles with ' ' to ensure that text on either side of removed handles are tokenized correctly
-    return pattern.sub(' ', text)
+    return pattern.sub(" ", text)
 
 
 ######################################################################

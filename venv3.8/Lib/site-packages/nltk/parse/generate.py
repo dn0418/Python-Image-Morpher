@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 # Natural Language Toolkit: Generating from a CFG
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Author: Steven Bird <stevenbird1@gmail.com>
 #         Peter Ljunglöf <peter.ljunglof@heatherleaf.se>
 # URL: <http://nltk.org/>
 # For license information, see LICENSE.TXT
 #
-from __future__ import print_function
 
 import itertools
 import sys
@@ -79,12 +78,12 @@ demo_grammar = """
 def demo(N=23):
     from nltk.grammar import CFG
 
-    print('Generating the first %d sentences for demo grammar:' % (N,))
+    print("Generating the first %d sentences for demo grammar:" % (N,))
     print(demo_grammar)
     grammar = CFG.fromstring(demo_grammar)
     for n, sent in enumerate(generate(grammar, n=N), 1):
-        print('%3d. %s' % (n, ' '.join(sent)))
+        print("%3d. %s" % (n, " ".join(sent)))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     demo()

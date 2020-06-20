@@ -1,6 +1,6 @@
 # Natural Language Toolkit: Chunkers
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Author: Steven Bird <stevenbird1@gmail.com>
 #         Edward Loper <edloper@gmail.com>
 # URL: <http://nltk.org/>
@@ -169,8 +169,8 @@ from nltk.chunk.util import (
 from nltk.chunk.regexp import RegexpChunkParser, RegexpParser
 
 # Standard treebank POS tagger
-_BINARY_NE_CHUNKER = 'chunkers/maxent_ne_chunker/english_ace_binary.pickle'
-_MULTICLASS_NE_CHUNKER = 'chunkers/maxent_ne_chunker/english_ace_multiclass.pickle'
+_BINARY_NE_CHUNKER = "chunkers/maxent_ne_chunker/english_ace_binary.pickle"
+_MULTICLASS_NE_CHUNKER = "chunkers/maxent_ne_chunker/english_ace_multiclass.pickle"
 
 
 def ne_chunk(tagged_tokens, binary=False):

@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
 
 
 # FIXME: the entire discourse.doctest is skipped if Prover9/Mace4 is
@@ -10,6 +9,6 @@ def setup_module(module):
 
     try:
         m = Mace()
-        m._find_binary('mace4')
+        m._find_binary("mace4")
     except LookupError:
         raise SkipTest("Mace4/Prover9 is not available so discourse.doctest is skipped")

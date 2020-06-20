@@ -50,3 +50,4 @@ WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 %Include qcameraviewfinder.sip
 %Include qgraphicsvideoitem.sip
 %Include qvideowidget.sip
+%Include qvideowidgetcontrol.sip

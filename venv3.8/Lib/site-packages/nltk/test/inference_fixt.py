@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
 
 
 def setup_module(module):
@@ -8,7 +7,7 @@ def setup_module(module):
 
     try:
         m = Mace()
-        m._find_binary('mace4')
+        m._find_binary("mace4")
     except LookupError:
         raise SkipTest(
             "Mace4/Prover9 is not available so inference.doctest was skipped"

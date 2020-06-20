@@ -37,7 +37,9 @@ public:
     QList<QObject *> rootObjects() const;
 %End
 %If (- Qt_5_9_0)
+%If (Qt_5_15_0 -)
     QList<QObject *> rootObjects();
+%End
 %End
 
 public slots:

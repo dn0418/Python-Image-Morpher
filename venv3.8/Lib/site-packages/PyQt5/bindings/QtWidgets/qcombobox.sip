@@ -159,4 +159,12 @@ signals:
 %If (Qt_5_14_0 -)
     void textHighlighted(const QString &);
 %End
+
+public:
+%If (Qt_5_15_0 -)
+    void setPlaceholderText(const QString &placeholderText);
+%End
+%If (Qt_5_15_0 -)
+    QString placeholderText() const;
+%End
 };

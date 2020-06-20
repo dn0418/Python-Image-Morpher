@@ -36,18 +36,23 @@ class QJSEngine : QObject
         sipTypeDef **type;
         int yes, no;
     } graph[] = {
-        {sipName_QQmlExpression, &sipType_QQmlExpression, -1, 1},
-    #if QT_VERSION >= 0x050200
-        {sipName_QQmlFileSelector, &sipType_QQmlFileSelector, -1, 2},
-    #else
-        {0, 0, -1, 2},
-    #endif
+        {sipName_QJSEngine, &sipType_QJSEngine, 8, 1},
+        {sipName_QQmlComponent, &sipType_QQmlComponent, -1, 2},
         {sipName_QQmlContext, &sipType_QQmlContext, -1, 3},
-        {sipName_QQmlPropertyMap, &sipType_QQmlPropertyMap, -1, 4},
-        {sipName_QQmlComponent, &sipType_QQmlComponent, -1, 5},
+    #if QT_VERSION >= 0x050f00
+        {sipName_QQmlEngineExtensionPlugin, &sipType_QQmlEngineExtensionPlugin, -1, 4},
+    #else
+        {0, 0, -1, 4},
+    #endif
+        {sipName_QQmlExpression, &sipType_QQmlExpression, -1, 5},
         {sipName_QQmlExtensionPlugin, &sipType_QQmlExtensionPlugin, -1, 6},
-        {sipName_QJSEngine, &sipType_QJSEngine, 7, -1},
-        {sipName_QQmlEngine, &sipType_QQmlEngine, 8, -1},
+    #if QT_VERSION >= 0x050200
+        {sipName_QQmlFileSelector, &sipType_QQmlFileSelector, -1, 7},
+    #else
+        {0, 0, -1, 7},
+    #endif
+        {sipName_QQmlPropertyMap, &sipType_QQmlPropertyMap, -1, -1},
+        {sipName_QQmlEngine, &sipType_QQmlEngine, 9, -1},
     #if QT_VERSION >= 0x050100
         {sipName_QQmlApplicationEngine, &sipType_QQmlApplicationEngine, -1, -1},
     #else
@@ -124,6 +129,17 @@ public:
 %End
 %If (Qt_5_14_0 -)
     bool isInterrupted() const;
+%End
+%If (Qt_5_15_0 -)
+    QString uiLanguage() const;
+%End
+%If (Qt_5_15_0 -)
+    void setUiLanguage(const QString &language);
+%End
+
+signals:
+%If (Qt_5_15_0 -)
+    void uiLanguageChanged();
 %End
 };
 

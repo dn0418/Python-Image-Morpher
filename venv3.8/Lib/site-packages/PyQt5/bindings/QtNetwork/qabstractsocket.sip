@@ -170,6 +170,9 @@ signals:
     void disconnected();
     void stateChanged(QAbstractSocket::SocketState);
     void error(QAbstractSocket::SocketError);
+%If (Qt_5_15_0 -)
+    void errorOccurred(QAbstractSocket::SocketError);
+%End
     void proxyAuthenticationRequired(const QNetworkProxy &proxy, QAuthenticator *authenticator);
 
 protected:

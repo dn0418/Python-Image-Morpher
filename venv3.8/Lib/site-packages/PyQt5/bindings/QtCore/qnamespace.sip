@@ -1362,6 +1362,9 @@ namespace Qt
         MatchCaseSensitive,
         MatchWrap,
         MatchRecursive,
+%If (Qt_5_15_0 -)
+        MatchRegularExpression,
+%End
     };
 
     typedef QFlags<Qt::MatchFlag> MatchFlags;
@@ -1447,6 +1450,9 @@ namespace Qt
 %End
 %If (Qt_5_14_0 -)
         AA_DisableSessionManager,
+%End
+%If (Qt_5_15_0 -)
+        AA_DisableNativeVirtualKeyboard,
 %End
     };
 

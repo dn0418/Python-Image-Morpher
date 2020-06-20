@@ -45,6 +45,17 @@ signals:
 
 protected:
     virtual ~QHelpFilterEngine();
+
+public:
+%If (Qt_5_15_0 -)
+    QList<QVersionNumber> availableVersions() const;
+%End
+%If (Qt_5_15_0 -)
+    QStringList indices() const;
+%End
+%If (Qt_5_15_0 -)
+    QStringList indices(const QString &filterName) const;
+%End
 };
 
 %End

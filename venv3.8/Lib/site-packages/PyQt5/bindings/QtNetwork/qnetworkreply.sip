@@ -116,6 +116,9 @@ signals:
 %End
 %End
     void error(QNetworkReply::NetworkError);
+%If (Qt_5_15_0 -)
+    void errorOccurred(QNetworkReply::NetworkError);
+%End
 %If (PyQt_SSL)
     void sslErrors(const QList<QSslError> &errors);
 %End

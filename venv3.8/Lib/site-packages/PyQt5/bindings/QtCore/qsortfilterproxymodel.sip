@@ -114,4 +114,27 @@ public:
 
 protected:
     void invalidateFilter();
+
+signals:
+%If (Qt_5_15_0 -)
+    void dynamicSortFilterChanged(bool dynamicSortFilter);
+%End
+%If (Qt_5_15_0 -)
+    void filterCaseSensitivityChanged(Qt::CaseSensitivity filterCaseSensitivity);
+%End
+%If (Qt_5_15_0 -)
+    void sortCaseSensitivityChanged(Qt::CaseSensitivity sortCaseSensitivity);
+%End
+%If (Qt_5_15_0 -)
+    void sortLocaleAwareChanged(bool sortLocaleAware);
+%End
+%If (Qt_5_15_0 -)
+    void sortRoleChanged(int sortRole);
+%End
+%If (Qt_5_15_0 -)
+    void filterRoleChanged(int filterRole);
+%End
+%If (Qt_5_15_0 -)
+    void recursiveFilteringEnabledChanged(bool recursiveFilteringEnabled);
+%End
 };

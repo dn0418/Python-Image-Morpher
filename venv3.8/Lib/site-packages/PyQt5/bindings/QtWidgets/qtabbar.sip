@@ -175,4 +175,10 @@ public:
     void setAccessibleTabName(int index, const QString &name);
 %End
 %End
+%If (Qt_5_15_0 -)
+    bool isTabVisible(int index) const;
+%End
+%If (Qt_5_15_0 -)
+    void setTabVisible(int index, bool visible);
+%End
 };

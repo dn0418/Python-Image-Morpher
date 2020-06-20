@@ -41,6 +41,34 @@ public:
         Py_END_ALLOW_THREADS
 %End
 
+%If (Qt_5_15_0 -)
+    void start(SIP_PYCALLABLE functionToRun /TypeHint="Callable[[], None]"/, int priority = 0) /ReleaseGIL/;
+%MethodCode
+        Py_INCREF(a0);
+        
+        Py_BEGIN_ALLOW_THREADS
+        
+        sipCpp->start([a0]() {
+            SIP_BLOCK_THREADS
+        
+            PyObject *res;
+        
+            res = PyObject_CallObject(a0, NULL);
+        
+            Py_DECREF(a0);
+        
+            if (res)
+                Py_DECREF(res);
+            else
+                pyqt5_err_print();
+        
+            SIP_UNBLOCK_THREADS
+        }, a1);
+        
+        Py_END_ALLOW_THREADS
+%End
+
+%End
     bool tryStart(QRunnable *runnable /GetWrapper/) /ReleaseGIL/;
 %MethodCode
         // We have to handle the object ownership manually.
@@ -52,6 +80,34 @@ public:
         Py_END_ALLOW_THREADS
 %End
 
+%If (Qt_5_15_0 -)
+    bool tryStart(SIP_PYCALLABLE functionToRun /TypeHint="Callable[[], None]"/) /ReleaseGIL/;
+%MethodCode
+        Py_INCREF(a0);
+        
+        Py_BEGIN_ALLOW_THREADS
+        
+        sipRes = sipCpp->tryStart([a0]() {
+            SIP_BLOCK_THREADS
+        
+            PyObject *res;
+        
+            res = PyObject_CallObject(a0, NULL);
+        
+            Py_DECREF(a0);
+        
+            if (res)
+                Py_DECREF(res);
+            else
+                pyqt5_err_print();
+        
+            SIP_UNBLOCK_THREADS
+        });
+        
+        Py_END_ALLOW_THREADS
+%End
+
+%End
 %If (Qt_5_9_0 -)
     bool tryTake(QRunnable *runnable /GetWrapper/) /ReleaseGIL/;
 %MethodCode

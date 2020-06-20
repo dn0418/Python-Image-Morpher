@@ -157,6 +157,11 @@ public:
 signals:
     void pageAdded(int id);
     void pageRemoved(int id);
+
+public:
+%If (Qt_5_15_0 -)
+    QList<int> visitedIds() const;
+%End
 };
 
 QFlags<QWizard::WizardOption> operator|(QWizard::WizardOption f1, QFlags<QWizard::WizardOption> f2);

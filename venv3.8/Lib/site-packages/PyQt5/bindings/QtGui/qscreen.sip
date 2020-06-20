@@ -87,6 +87,9 @@ public:
 %If (Qt_5_9_0 -)
     QString serialNumber() const;
 %End
+%If (Qt_5_15_0 -)
+    QScreen *virtualSiblingAt(QPoint point);
+%End
 
 private:
     QScreen(const QScreen &);

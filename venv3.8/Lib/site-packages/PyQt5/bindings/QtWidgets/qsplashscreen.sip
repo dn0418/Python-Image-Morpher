@@ -29,6 +29,9 @@ class QSplashScreen : QWidget
 public:
     QSplashScreen(const QPixmap &pixmap = QPixmap(), Qt::WindowFlags flags = Qt::WindowFlags());
     QSplashScreen(QWidget *parent /TransferThis/, const QPixmap &pixmap = QPixmap(), Qt::WindowFlags flags = Qt::WindowFlags());
+%If (Qt_5_15_0 -)
+    QSplashScreen(QScreen *screen, const QPixmap &pixmap = QPixmap(), Qt::WindowFlags flags = Qt::WindowFlags());
+%End
     virtual ~QSplashScreen();
     void setPixmap(const QPixmap &pixmap);
     const QPixmap pixmap() const;

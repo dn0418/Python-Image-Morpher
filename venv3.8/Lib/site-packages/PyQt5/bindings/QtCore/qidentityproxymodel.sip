@@ -51,4 +51,10 @@ public:
     virtual QVariant headerData(int section, Qt::Orientation orientation, int role) const;
 %End
     virtual QModelIndex sibling(int row, int column, const QModelIndex &idx) const;
+%If (Qt_5_15_0 -)
+    virtual bool moveRows(const QModelIndex &sourceParent, int sourceRow, int count, const QModelIndex &destinationParent, int destinationChild);
+%End
+%If (Qt_5_15_0 -)
+    virtual bool moveColumns(const QModelIndex &sourceParent, int sourceColumn, int count, const QModelIndex &destinationParent, int destinationChild);
+%End
 };

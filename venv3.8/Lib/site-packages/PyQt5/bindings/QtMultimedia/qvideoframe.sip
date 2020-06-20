@@ -148,4 +148,7 @@ public:
 %If (Qt_5_13_0 -)
     QAbstractVideoBuffer *buffer() const;
 %End
+%If (Qt_5_15_0 -)
+    QImage image() const;
+%End
 };

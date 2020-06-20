@@ -238,4 +238,12 @@ public:
 %If (Qt_5_10_0 -)
     void setWindowStates(Qt::WindowStates states);
 %End
+
+public slots:
+%If (Qt_5_15_0 -)
+    bool startSystemResize(Qt::Edges edges);
+%End
+%If (Qt_5_15_0 -)
+    bool startSystemMove();
+%End
 };

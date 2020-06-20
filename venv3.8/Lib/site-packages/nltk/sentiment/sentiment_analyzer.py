@@ -2,7 +2,7 @@
 #
 # Natural Language Toolkit: Sentiment Analyzer
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Author: Pierpaolo Pantone <24alsecondo@gmail.com>
 # URL: <http://nltk.org/>
 # For license information, see LICENSE.TXT
@@ -13,7 +13,7 @@ using NLTK features and classifiers, especially for teaching and demonstrative
 purposes.
 """
 
-from __future__ import print_function
+import sys
 from collections import defaultdict
 
 from nltk.classify.util import apply_features, accuracy as eval_accuracy
@@ -26,8 +26,6 @@ from nltk.metrics import (
 )
 
 from nltk.probability import FreqDist
-
-from nltk.sentiment.util import save_file, timer
 
 
 class SentimentAnalyzer(object):
@@ -182,9 +180,18 @@ class SentimentAnalyzer(object):
         print("Training classifier")
         self.classifier = trainer(training_set, **kwargs)
         if save_classifier:
-            save_file(self.classifier, save_classifier)
+            self.save_file(self.classifier, save_classifier)
 
         return self.classifier
+
+    def save_file(self, content, filename):
+        """
+        Store `content` in `filename`. Can be used to store a SentimentAnalyzer.
+        """
+        print("Saving", filename, file=sys.stderr)
+        with open(filename, 'wb') as storage_file:
+            # The protocol=2 parameter is for python2 compatibility
+            pickle.dump(content, storage_file, protocol=2)
 
     def evaluate(
         self,
@@ -214,7 +221,7 @@ class SentimentAnalyzer(object):
         metrics_results = {}
         if accuracy == True:
             accuracy_score = eval_accuracy(classifier, test_set)
-            metrics_results['Accuracy'] = accuracy_score
+            metrics_results["Accuracy"] = accuracy_score
 
         gold_results = defaultdict(set)
         test_results = defaultdict(set)
@@ -230,19 +237,19 @@ class SentimentAnalyzer(object):
                 precision_score = eval_precision(
                     gold_results[label], test_results[label]
                 )
-                metrics_results['Precision [{0}]'.format(label)] = precision_score
+                metrics_results["Precision [{0}]".format(label)] = precision_score
             if recall == True:
                 recall_score = eval_recall(gold_results[label], test_results[label])
-                metrics_results['Recall [{0}]'.format(label)] = recall_score
+                metrics_results["Recall [{0}]".format(label)] = recall_score
             if f_measure == True:
                 f_measure_score = eval_f_measure(
                     gold_results[label], test_results[label]
                 )
-                metrics_results['F-measure [{0}]'.format(label)] = f_measure_score
+                metrics_results["F-measure [{0}]".format(label)] = f_measure_score
 
         # Print evaluation results (in alphabetical order)
         if verbose == True:
             for result in sorted(metrics_results):
-                print('{0}: {1}'.format(result, metrics_results[result]))
+                print("{0}: {1}".format(result, metrics_results[result]))
 
         return metrics_results

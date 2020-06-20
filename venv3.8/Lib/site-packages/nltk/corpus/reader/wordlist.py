@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 # Natural Language Toolkit: Word List Corpus Reader
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Author: Steven Bird <stevenbird1@gmail.com>
 #         Edward Loper <edloper@gmail.com>
 # URL: <http://nltk.org/>
 # For license information, see LICENSE.TXT
-from six import string_types
-
 from nltk.tokenize import line_tokenize
 
 from nltk.corpus.reader.util import *
@@ -19,7 +17,7 @@ class WordListCorpusReader(CorpusReader):
     List of words, one per line.  Blank lines are ignored.
     """
 
-    def words(self, fileids=None, ignore_lines_startswith='\n'):
+    def words(self, fileids=None, ignore_lines_startswith="\n"):
         return [
             line
             for line in line_tokenize(self.raw(fileids))
@@ -29,7 +27,7 @@ class WordListCorpusReader(CorpusReader):
     def raw(self, fileids=None):
         if fileids is None:
             fileids = self._fileids
-        elif isinstance(fileids, string_types):
+        elif isinstance(fileids, str):
             fileids = [fileids]
         return concat([self.open(f).read() for f in fileids])
 
@@ -54,32 +52,32 @@ class NonbreakingPrefixesCorpusReader(WordListCorpusReader):
     """
 
     available_langs = {
-        'catalan': 'ca',
-        'czech': 'cs',
-        'german': 'de',
-        'greek': 'el',
-        'english': 'en',
-        'spanish': 'es',
-        'finnish': 'fi',
-        'french': 'fr',
-        'hungarian': 'hu',
-        'icelandic': 'is',
-        'italian': 'it',
-        'latvian': 'lv',
-        'dutch': 'nl',
-        'polish': 'pl',
-        'portuguese': 'pt',
-        'romanian': 'ro',
-        'russian': 'ru',
-        'slovak': 'sk',
-        'slovenian': 'sl',
-        'swedish': 'sv',
-        'tamil': 'ta',
+        "catalan": "ca",
+        "czech": "cs",
+        "german": "de",
+        "greek": "el",
+        "english": "en",
+        "spanish": "es",
+        "finnish": "fi",
+        "french": "fr",
+        "hungarian": "hu",
+        "icelandic": "is",
+        "italian": "it",
+        "latvian": "lv",
+        "dutch": "nl",
+        "polish": "pl",
+        "portuguese": "pt",
+        "romanian": "ro",
+        "russian": "ru",
+        "slovak": "sk",
+        "slovenian": "sl",
+        "swedish": "sv",
+        "tamil": "ta",
     }
     # Also, add the lang IDs as the keys.
     available_langs.update({v: v for v in available_langs.values()})
 
-    def words(self, lang=None, fileids=None, ignore_lines_startswith='#'):
+    def words(self, lang=None, fileids=None, ignore_lines_startswith="#"):
         """
         This module returns a list of nonbreaking prefixes for the specified
         language(s).
@@ -97,7 +95,7 @@ class NonbreakingPrefixesCorpusReader(WordListCorpusReader):
         # all languages when fileids==None.
         if lang in self.available_langs:
             lang = self.available_langs[lang]
-            fileids = ['nonbreaking_prefix.' + lang]
+            fileids = ["nonbreaking_prefix." + lang]
         return [
             line
             for line in line_tokenize(self.raw(fileids))
@@ -115,21 +113,21 @@ class UnicharsCorpusReader(WordListCorpusReader):
 
     # These are categories similar to the Perl Unicode Properties
     available_categories = [
-        'Close_Punctuation',
-        'Currency_Symbol',
-        'IsAlnum',
-        'IsAlpha',
-        'IsLower',
-        'IsN',
-        'IsSc',
-        'IsSo',
-        'IsUpper',
-        'Line_Separator',
-        'Number',
-        'Open_Punctuation',
-        'Punctuation',
-        'Separator',
-        'Symbol',
+        "Close_Punctuation",
+        "Currency_Symbol",
+        "IsAlnum",
+        "IsAlpha",
+        "IsLower",
+        "IsN",
+        "IsSc",
+        "IsSo",
+        "IsUpper",
+        "Line_Separator",
+        "Number",
+        "Open_Punctuation",
+        "Punctuation",
+        "Separator",
+        "Symbol",
     ]
 
     def chars(self, category=None, fileids=None):
@@ -148,7 +146,7 @@ class UnicharsCorpusReader(WordListCorpusReader):
         :return: a list of characters given the specific unicode character category
         """
         if category in self.available_categories:
-            fileids = [category + '.txt']
+            fileids = [category + ".txt"]
         return list(self.raw(fileids).strip())
 
 
@@ -167,10 +165,10 @@ class MWAPPDBCorpusReader(WordListCorpusReader):
     :return: a list of tuples of similar lexical terms.
     """
 
-    mwa_ppdb_xxxl_file = 'ppdb-1.0-xxxl-lexical.extended.synonyms.uniquepairs'
+    mwa_ppdb_xxxl_file = "ppdb-1.0-xxxl-lexical.extended.synonyms.uniquepairs"
 
     def entries(self, fileids=mwa_ppdb_xxxl_file):
         """
         :return: a tuple of synonym word pairs.
         """
-        return [tuple(line.split('\t')) for line in line_tokenize(self.raw(fileids))]
+        return [tuple(line.split("\t")) for line in line_tokenize(self.raw(fileids))]

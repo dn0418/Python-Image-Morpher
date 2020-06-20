@@ -34,4 +34,10 @@ public:
     bool load(const QString &fileName, const QString &directory = QString(), const QString &searchDelimiters = QString(), const QString &suffix = QString()) /ReleaseGIL/;
     bool load(const QLocale &locale, const QString &fileName, const QString &prefix = QString(), const QString &directory = QString(), const QString &suffix = QString()) /ReleaseGIL/;
     bool load(const uchar *data /Array/, int len /ArraySize/, const QString &directory = QString()) /PyName=loadFromData,ReleaseGIL/;
+%If (Qt_5_15_0 -)
+    QString language() const;
+%End
+%If (Qt_5_15_0 -)
+    QString filePath() const;
+%End
 };

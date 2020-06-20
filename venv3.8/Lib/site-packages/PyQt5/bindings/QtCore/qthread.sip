@@ -61,6 +61,9 @@ public slots:
 
 public:
     bool wait(unsigned long msecs = ULONG_MAX) /ReleaseGIL/;
+%If (Qt_5_15_0 -)
+    bool wait(QDeadlineTimer deadline) [bool (QDeadlineTimer deadline = QDeadlineTimer(QDeadlineTimer::ForeverConstant::Forever))];
+%End
 
 signals:
     void started();

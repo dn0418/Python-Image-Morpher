@@ -1,20 +1,17 @@
 # -*- coding: utf-8 -*-
 # Natural Language Toolkit: Transformation-based learning
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Author: Marcus Uneson <marcus.uneson@gmail.com>
 #   based on previous (nltk2) version by
 #   Christopher Maloof, Edward Loper, Steven Bird
 # URL: <http://nltk.org/>
 # For license information, see  LICENSE.TXT
 
-from __future__ import division, print_function, unicode_literals
 from abc import ABCMeta, abstractmethod
-from six import add_metaclass
 
 
-@add_metaclass(ABCMeta)
-class Feature(object):
+class Feature(metaclass=ABCMeta):
     """
     An abstract base class for Features. A Feature is a combination of
     a specific property-computing method and a list of relative positions
@@ -33,7 +30,7 @@ class Feature(object):
 
     """
 
-    json_tag = 'nltk.tbl.Feature'
+    json_tag = "nltk.tbl.Feature"
     PROPERTY_NAME = None
 
     def __init__(self, positions, end=None):

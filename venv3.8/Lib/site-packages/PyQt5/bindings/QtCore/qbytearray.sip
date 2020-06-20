@@ -437,6 +437,12 @@ public:
         Base64UrlEncoding,
         KeepTrailingEquals,
         OmitTrailingEquals,
+%If (Qt_5_15_0 -)
+        IgnoreBase64DecodingErrors,
+%End
+%If (Qt_5_15_0 -)
+        AbortOnBase64DecodingErrors,
+%End
     };
 
 %End
@@ -473,6 +479,45 @@ public:
 %If (Qt_5_12_0 -)
     bool isLower() const;
 %End
+%If (Qt_5_15_0 -)
+
+    enum class Base64DecodingStatus
+    {
+        Ok,
+        IllegalInputLength,
+        IllegalCharacter,
+        IllegalPadding,
+    };
+
+%End
+%If (Qt_5_15_0 -)
+    static QByteArray::FromBase64Result fromBase64Encoding(const QByteArray &base64, QByteArray::Base64Options options = QByteArray::Base64Encoding);
+%End
+%If (Qt_5_15_0 -)
+
+    class FromBase64Result
+    {
+%TypeHeaderCode
+#include <qbytearray.h>
+%End
+
+    public:
+        QByteArray decoded;
+        QByteArray::Base64DecodingStatus decodingStatus;
+        void swap(QByteArray::FromBase64Result &other /Constrained/);
+        operator bool() const;
+%MethodCode
+            // This is required because SIP doesn't handle operator bool() properly.
+            sipRes = sipCpp->operator bool();
+%End
+
+        long __hash__() const;
+%MethodCode
+            sipRes = qHash(*sipCpp);
+%End
+    };
+
+%End
 };
 
 bool operator==(const QByteArray &a1, const QByteArray &a2);
@@ -492,4 +537,10 @@ QFlags<QByteArray::Base64Option> operator|(QByteArray::Base64Option f1, QFlags<Q
 quint16 qChecksum(const char *s /Array/, uint len /ArraySize/);
 %If (Qt_5_9_0 -)
 quint16 qChecksum(const char *s /Array/, uint len /ArraySize/, Qt::ChecksumType standard);
+%End
+%If (Qt_5_15_0 -)
+bool operator==(const QByteArray::FromBase64Result &lhs, const QByteArray::FromBase64Result &rhs);
+%End
+%If (Qt_5_15_0 -)
+bool operator!=(const QByteArray::FromBase64Result &lhs, const QByteArray::FromBase64Result &rhs);
 %End

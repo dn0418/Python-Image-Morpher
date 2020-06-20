@@ -176,6 +176,9 @@ protected:
     virtual void mouseDoubleClickEvent(QMouseEvent *);
     virtual void mouseMoveEvent(QMouseEvent *);
     virtual void wheelEvent(QWheelEvent *);
+%If (Qt_5_15_0 -)
+    virtual void tabletEvent(QTabletEvent *);
+%End
 
 public:
 %If (Qt_5_1_0 -)

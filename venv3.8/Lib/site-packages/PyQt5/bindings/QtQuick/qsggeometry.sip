@@ -401,4 +401,7 @@ enum /NoScope/
 %If (Qt_5_8_0 -)
     static void updateColoredRectGeometry(QSGGeometry *g, const QRectF &rect);
 %End
+
+private:
+    QSGGeometry(const QSGGeometry &);
 };

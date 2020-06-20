@@ -218,7 +218,7 @@ Py_ssize_t idx = sipConvertFromSequenceIndex(a0, sipCpp->count());
 if (idx < 0)
     sipIsErr = 1;
 else
-    sipRes = new QPoint(sipCpp->operator[]((int)idx));
+    sipRes = &sipCpp->operator[]((int)idx);
 %End
 
 // Some additional Python special methods.
@@ -292,7 +292,7 @@ else
 }
 %End
 
-QPolygon &operator[](SIP_PYSLICE slice);
+QPolygon operator[](SIP_PYSLICE slice);
 %MethodCode
 Py_ssize_t start, stop, step, slicelength;
 
@@ -404,7 +404,7 @@ Py_ssize_t idx = sipConvertFromSequenceIndex(a0, sipCpp->count());
 if (idx < 0)
     sipIsErr = 1;
 else
-    sipRes = new QPointF(sipCpp->operator[]((int)idx));
+    sipRes = &sipCpp->operator[]((int)idx);
 %End
 
 // Some additional Python special methods.
@@ -478,7 +478,7 @@ else
 }
 %End
 
-QPolygonF &operator[](SIP_PYSLICE slice);
+QPolygonF operator[](SIP_PYSLICE slice);
 %MethodCode
 Py_ssize_t start, stop, step, slicelength;
 

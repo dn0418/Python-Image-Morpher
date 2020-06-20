@@ -35,3 +35,19 @@ public:
     QUrl baseUrl() const;
 %End
 };
+
+%If (Qt_5_15_0 -)
+
+class QQmlEngineExtensionPlugin : QObject
+{
+%TypeHeaderCode
+#include <qqmlextensionplugin.h>
+%End
+
+public:
+    explicit QQmlEngineExtensionPlugin(QObject *parent /TransferThis/ = 0);
+    virtual ~QQmlEngineExtensionPlugin();
+    virtual void initializeEngine(QQmlEngine *engine, const char *uri);
+};
+
+%End

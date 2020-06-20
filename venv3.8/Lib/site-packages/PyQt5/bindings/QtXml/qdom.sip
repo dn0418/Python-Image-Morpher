@@ -224,6 +224,9 @@ public:
     bool setContent(const QString &text, QString *errorMsg /Out/ = 0, int *errorLine = 0, int *errorColumn = 0);
     bool setContent(QIODevice *dev, QString *errorMsg /Out/ = 0, int *errorLine = 0, int *errorColumn = 0) /ReleaseGIL/;
     bool setContent(QXmlInputSource *source, QXmlReader *reader, QString *errorMsg /Out/ = 0, int *errorLine = 0, int *errorColumn = 0) /ReleaseGIL/;
+%If (Qt_5_15_0 -)
+    bool setContent(QXmlStreamReader *reader, bool namespaceProcessing, QString *errorMsg /Out/ = 0, int *errorLine = 0, int *errorColumn = 0);
+%End
     QString toString(int indent = 1) const;
     QByteArray toByteArray(int indent = 1) const;
 };

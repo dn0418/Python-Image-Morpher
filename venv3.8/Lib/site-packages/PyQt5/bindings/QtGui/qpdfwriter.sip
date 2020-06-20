@@ -56,6 +56,15 @@ public:
 %If (Qt_5_10_0 -)
     QPagedPaintDevice::PdfVersion pdfVersion() const;
 %End
+%If (Qt_5_15_0 -)
+    void setDocumentXmpMetadata(const QByteArray &xmpMetadata);
+%End
+%If (Qt_5_15_0 -)
+    QByteArray documentXmpMetadata() const;
+%End
+%If (Qt_5_15_0 -)
+    void addFileAttachment(const QString &fileName, const QByteArray &data, const QString &mimeType = QString());
+%End
 
 private:
     QPdfWriter(const QPdfWriter &);

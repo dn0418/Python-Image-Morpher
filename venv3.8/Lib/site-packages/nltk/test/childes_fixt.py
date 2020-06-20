@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
 
 
 def setup_module(module):
@@ -7,7 +6,7 @@ def setup_module(module):
     import nltk.data
 
     try:
-        nltk.data.find('corpora/childes/data-xml/Eng-USA-MOR/')
+        nltk.data.find("corpora/childes/data-xml/Eng-USA-MOR/")
     except LookupError as e:
         print(e)
         raise SkipTest(

@@ -1,6 +1,6 @@
 # Natural Language Toolkit: Carnegie Mellon Pronouncing Dictionary Corpus Reader
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Author: Steven Bird <stevenbird1@gmail.com>
 # URL: <http://nltk.org/>
 # For license information, see LICENSE.TXT
@@ -45,7 +45,6 @@ Y       yield   Y IY L D       Z       zee     Z IY
 ZH      seizure S IY ZH ER
 """
 
-from nltk import compat
 from nltk.util import Index
 
 from nltk.corpus.reader.util import *
@@ -70,7 +69,7 @@ class CMUDictCorpusReader(CorpusReader):
         :return: the cmudict lexicon as a raw string.
         """
         fileids = self._fileids
-        if isinstance(fileids, string_types):
+        if isinstance(fileids, str):
             fileids = [fileids]
         return concat([self.open(f).read() for f in fileids])
 
@@ -92,7 +91,7 @@ def read_cmudict_block(stream):
     entries = []
     while len(entries) < 100:  # Read 100 at a time.
         line = stream.readline()
-        if line == '':
+        if line == "":
             return entries  # end of file.
         pieces = line.split()
         entries.append((pieces[0].lower(), pieces[2:]))

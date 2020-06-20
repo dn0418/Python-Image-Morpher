@@ -154,6 +154,9 @@ signals:
     void lockStatusChanged(QCamera::LockStatus, QCamera::LockChangeReason);
     void lockStatusChanged(QCamera::LockType, QCamera::LockStatus, QCamera::LockChangeReason);
     void error(QCamera::Error);
+%If (Qt_5_15_0 -)
+    void errorOccurred(QCamera::Error);
+%End
 
 public:
 %If (Qt_5_5_0 -)

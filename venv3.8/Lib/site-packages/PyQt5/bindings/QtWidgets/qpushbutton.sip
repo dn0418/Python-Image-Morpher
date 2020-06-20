@@ -52,8 +52,13 @@ protected:
     virtual void keyPressEvent(QKeyEvent *);
     virtual void focusInEvent(QFocusEvent *);
     virtual void focusOutEvent(QFocusEvent *);
+%If (Qt_5_15_0 -)
+    virtual bool hitButton(const QPoint &pos) const;
+%End
 // Protected platform specific methods.
+%If (- Qt_5_15_0)
 %If (WS_MACX)
 bool hitButton(const QPoint &pos) const;
+%End
 %End
 };

@@ -352,6 +352,9 @@ public:
 %If (Qt_5_4_0 -)
     Qt::MouseButtons buttons() const;
 %End
+%If (Qt_5_15_0 -)
+    QTabletEvent::TabletDevice deviceType() const;
+%End
 };
 
 class QKeyEvent : QInputEvent

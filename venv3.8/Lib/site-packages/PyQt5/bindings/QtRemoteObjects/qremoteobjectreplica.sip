@@ -49,6 +49,9 @@ public:
 signals:
     void initialized();
     void stateChanged(QRemoteObjectReplica::State state, QRemoteObjectReplica::State oldState);
+%If (Qt_5_15_0 -)
+    void notified();
+%End
 };
 
 %End

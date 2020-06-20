@@ -148,6 +148,15 @@ public:
 %If (Qt_5_13_0 -)
     bool ocspStaplingEnabled() const;
 %End
+%If (Qt_5_15_0 -)
+    void addCaCertificate(const QSslCertificate &certificate);
+%End
+%If (Qt_5_15_0 -)
+    bool addCaCertificates(const QString &path, QSsl::EncodingFormat format = QSsl::Pem, QSslCertificate::PatternSyntax syntax = QSslCertificate::PatternSyntax::FixedString);
+%End
+%If (Qt_5_15_0 -)
+    void addCaCertificates(const QList<QSslCertificate> &certificates);
+%End
 };
 
 %End

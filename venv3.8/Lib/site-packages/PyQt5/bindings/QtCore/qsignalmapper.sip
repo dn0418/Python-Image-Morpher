@@ -50,6 +50,18 @@ signals:
     void mapped(const QString &);
     void mapped(QWidget *);
     void mapped(QObject *);
+%If (Qt_5_15_0 -)
+    void mappedInt(int);
+%End
+%If (Qt_5_15_0 -)
+    void mappedString(const QString &);
+%End
+%If (Qt_5_15_0 -)
+    void mappedWidget(QWidget *);
+%End
+%If (Qt_5_15_0 -)
+    void mappedObject(QObject *);
+%End
 
 public slots:
     void map();

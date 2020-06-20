@@ -45,5 +45,5 @@ WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 
 %DefaultSupertype sip.simplewrapper
 
-%Include qxml.sip
 %Include qdom.sip
+%Include qxml.sip

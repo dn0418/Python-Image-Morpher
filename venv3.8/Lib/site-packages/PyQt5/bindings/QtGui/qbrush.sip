@@ -123,6 +123,26 @@ class QGradient
 #include <qbrush.h>
 %End
 
+%ConvertToSubClassCode
+    switch (sipCpp->type())
+    {
+    case QGradient::ConicalGradient:
+        sipType = sipType_QConicalGradient;
+        break;
+    
+    case QGradient::LinearGradient:
+        sipType = sipType_QLinearGradient;
+        break;
+    
+    case QGradient::RadialGradient:
+        sipType = sipType_QRadialGradient;
+        break;
+    
+    default:
+        sipType = 0;
+    }
+%End
+
 public:
     enum CoordinateMode
     {

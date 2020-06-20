@@ -32,8 +32,9 @@ class QVideoWidget : QWidget, QMediaBindableInterface
         sipTypeDef **type;
         int yes, no;
     } graph[] = {
-        {sipName_QGraphicsVideoItem, &sipType_QGraphicsVideoItem, -1, 1},
-        {sipName_QVideoWidget, &sipType_QVideoWidget, 2, -1},
+        {sipName_QVideoWidget, &sipType_QVideoWidget, 3, 1},
+        {sipName_QGraphicsVideoItem, &sipType_QGraphicsVideoItem, -1, 2},
+        {sipName_QVideoWidgetControl, &sipType_QVideoWidgetControl, -1, -1},
         {sipName_QCameraViewfinder, &sipType_QCameraViewfinder, -1, -1},
     };
     
@@ -95,4 +96,9 @@ protected:
     virtual void moveEvent(QMoveEvent *event);
     virtual void paintEvent(QPaintEvent *event);
     virtual bool setMediaObject(QMediaObject *object);
+
+public:
+%If (Qt_5_15_0 -)
+    QAbstractVideoSurface *videoSurface() const;
+%End
 };

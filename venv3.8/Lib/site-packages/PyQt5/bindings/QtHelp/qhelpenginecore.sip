@@ -34,16 +34,21 @@ class QHelpEngineCore : QObject
     } graph[] = {
         {sipName_QHelpContentModel, &sipType_QHelpContentModel, -1, 1},
         {sipName_QHelpContentWidget, &sipType_QHelpContentWidget, -1, 2},
-        {sipName_QHelpEngineCore, &sipType_QHelpEngineCore, 9, 3},
+        {sipName_QHelpEngineCore, &sipType_QHelpEngineCore, 10, 3},
     #if QT_VERSION >= 0x050d00
         {sipName_QHelpFilterEngine, &sipType_QHelpFilterEngine, -1, 4},
     #else
         {0, 0, -1, 4},
     #endif
-        {sipName_QHelpIndexModel, &sipType_QHelpIndexModel, -1, 5},
-        {sipName_QHelpIndexWidget, &sipType_QHelpIndexWidget, -1, 6},
-        {sipName_QHelpSearchEngine, &sipType_QHelpSearchEngine, -1, 7},
-        {sipName_QHelpSearchQueryWidget, &sipType_QHelpSearchQueryWidget, -1, 8},
+    #if QT_VERSION >= 0x050f00
+        {sipName_QHelpFilterSettingsWidget, &sipType_QHelpFilterSettingsWidget, -1, 5},
+    #else
+        {0, 0, -1, 5},
+    #endif
+        {sipName_QHelpIndexModel, &sipType_QHelpIndexModel, -1, 6},
+        {sipName_QHelpIndexWidget, &sipType_QHelpIndexWidget, -1, 7},
+        {sipName_QHelpSearchEngine, &sipType_QHelpSearchEngine, -1, 8},
+        {sipName_QHelpSearchQueryWidget, &sipType_QHelpSearchQueryWidget, -1, 9},
         {sipName_QHelpSearchResultWidget, &sipType_QHelpSearchResultWidget, -1, -1},
         {sipName_QHelpEngine, &sipType_QHelpEngine, -1, -1},
     };
@@ -123,5 +128,17 @@ public:
 %End
 %If (Qt_5_13_0 -)
     bool usesFilterEngine() const;
+%End
+%If (Qt_5_15_0 -)
+    QList<QHelpLink> documentsForIdentifier(const QString &id) const;
+%End
+%If (Qt_5_15_0 -)
+    QList<QHelpLink> documentsForIdentifier(const QString &id, const QString &filterName) const;
+%End
+%If (Qt_5_15_0 -)
+    QList<QHelpLink> documentsForKeyword(const QString &keyword) const;
+%End
+%If (Qt_5_15_0 -)
+    QList<QHelpLink> documentsForKeyword(const QString &keyword, const QString &filterName) const;
 %End
 };

@@ -80,6 +80,12 @@ public:
 %If (Qt_5_13_0 -)
     QResource::Compression compressionAlgorithm() const;
 %End
+%If (Qt_5_15_0 -)
+    qint64 uncompressedSize() const;
+%End
+%If (Qt_5_15_0 -)
+    QByteArray uncompressedData() const;
+%End
 
 private:
     QResource(const QResource &);

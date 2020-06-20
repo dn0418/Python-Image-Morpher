@@ -168,6 +168,11 @@ public:
     virtual ~QRemoteObjectHost();
     virtual QUrl hostUrl() const;
     virtual bool setHostUrl(const QUrl &hostAddress, QRemoteObjectHostBase::AllowedSchemas allowedSchemas = QRemoteObjectHostBase::BuiltInSchemasOnly);
+
+signals:
+%If (Qt_5_15_0 -)
+    void hostUrlChanged();
+%End
 };
 
 %End

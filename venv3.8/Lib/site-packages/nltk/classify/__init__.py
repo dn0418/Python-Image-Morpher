@@ -1,6 +1,6 @@
 # Natural Language Toolkit: Classifiers
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Author: Edward Loper <edloper@gmail.com>
 # URL: <http://nltk.org/>
 # For license information, see LICENSE.TXT
@@ -57,7 +57,7 @@ to the classifier:
     >>> from nltk.corpus import gutenberg
     >>> for fileid in gutenberg.fileids(): # doctest: +SKIP
     ...     doc = gutenberg.words(fileid) # doctest: +SKIP
-    ...     print fileid, classifier.classify(document_features(doc)) # doctest: +SKIP
+    ...     print(fileid, classifier.classify(document_features(doc))) # doctest: +SKIP
 
 The parameters that a feature detector expects will vary, depending on
 the task and the needs of the feature detector.  For example, a

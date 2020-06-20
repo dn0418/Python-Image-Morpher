@@ -53,4 +53,16 @@ signals:
 %If (Qt_5_2_0 -)
     void buttonToggled(int, bool);
 %End
+%If (Qt_5_15_0 -)
+    void idClicked(int);
+%End
+%If (Qt_5_15_0 -)
+    void idPressed(int);
+%End
+%If (Qt_5_15_0 -)
+    void idReleased(int);
+%End
+%If (Qt_5_15_0 -)
+    void idToggled(int, bool);
+%End
 };

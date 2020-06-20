@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 # Natural Language Toolkit: NIST Score
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Authors:
 # Contributors:
 # URL: <http://nltk.org/>
 # For license information, see LICENSE.TXT
 
 """NIST score implementation."""
-from __future__ import division
 
 import math
 import fractions

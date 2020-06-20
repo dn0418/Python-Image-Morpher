@@ -122,13 +122,21 @@ public:
 %If (Qt_5_12_0 -)
         QCborMap,
 %End
+%If (Qt_5_15_0 -)
+        QColorSpace,
+%End
         User,
     };
 
     static int type(const char *typeName);
     static const char *typeName(int type);
     static bool isRegistered(int type);
+%If (- Qt_5_15_0)
     explicit QMetaType(const int type);
+%End
+%If (Qt_5_15_0 -)
+    explicit QMetaType(const int type = QMetaType::Type::UnknownType);
+%End
     ~QMetaType();
 
     enum TypeFlag
@@ -149,9 +157,18 @@ public:
 %If (Qt_5_13_0 -)
     int id() const;
 %End
+%If (Qt_5_15_0 -)
+    QByteArray name() const;
+%End
 
 private:
     QMetaType(const QMetaType &other);
 };
 
 QFlags<QMetaType::TypeFlag> operator|(QMetaType::TypeFlag f1, QFlags<QMetaType::TypeFlag> f2);
+%If (Qt_5_15_0 -)
+bool operator==(const QMetaType &a, const QMetaType &b);
+%End
+%If (Qt_5_15_0 -)
+bool operator!=(const QMetaType &a, const QMetaType &b);
+%End

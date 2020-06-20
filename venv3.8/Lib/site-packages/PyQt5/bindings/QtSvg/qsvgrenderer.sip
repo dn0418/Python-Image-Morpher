@@ -87,4 +87,15 @@ public slots:
 
 signals:
     void repaintNeeded();
+
+public:
+%If (Qt_5_15_0 -)
+    Qt::AspectRatioMode aspectRatioMode() const;
+%End
+%If (Qt_5_15_0 -)
+    void setAspectRatioMode(Qt::AspectRatioMode mode);
+%End
+%If (Qt_5_15_0 -)
+    QTransform transformForElement(const QString &id) const;
+%End
 };

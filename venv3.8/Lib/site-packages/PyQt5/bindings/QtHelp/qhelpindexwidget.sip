@@ -27,6 +27,9 @@ class QHelpIndexModel : QStringListModel /NoDefaultCtors/
 %End
 
 public:
+%If (Qt_5_15_0 -)
+    QHelpEngineCore *helpEngine() const;
+%End
     void createIndex(const QString &customFilterName);
     QModelIndex filter(const QString &filter, const QString &wildcard = QString());
     QMap<QString, QUrl> linksForKeyword(const QString &keyword) const;
@@ -53,6 +56,14 @@ signals:
 public slots:
     void filterIndices(const QString &filter, const QString &wildcard = QString());
     void activateCurrentItem();
+
+signals:
+%If (Qt_5_15_0 -)
+    void documentActivated(const QHelpLink &document, const QString &keyword);
+%End
+%If (Qt_5_15_0 -)
+    void documentsActivated(const QList<QHelpLink> &documents, const QString &keyword);
+%End
 
 private:
     QHelpIndexWidget();

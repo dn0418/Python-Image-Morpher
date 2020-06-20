@@ -88,6 +88,9 @@ signals:
     void connected();
     void disconnected();
     void error(QLocalSocket::LocalSocketError socketError);
+%If (Qt_5_15_0 -)
+    void errorOccurred(QLocalSocket::LocalSocketError socketError);
+%End
     void stateChanged(QLocalSocket::LocalSocketState socketState);
 
 protected:

@@ -53,7 +53,9 @@ WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 %Include qhelpenginecore.sip
 %Include qhelpfilterdata.sip
 %Include qhelpfilterengine.sip
+%Include qhelpfiltersettingswidget.sip
 %Include qhelpindexwidget.sip
+%Include qhelplink.sip
 %Include qhelpsearchengine.sip
 %Include qhelpsearchquerywidget.sip
 %Include qhelpsearchresultwidget.sip

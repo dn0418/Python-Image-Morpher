@@ -76,6 +76,9 @@ public:
     void setVideoOutput(QVideoWidget *);
     void setVideoOutput(QGraphicsVideoItem *);
     void setVideoOutput(QAbstractVideoSurface *surface);
+%If (Qt_5_15_0 -)
+    void setVideoOutput(const QVector<QAbstractVideoSurface *> &surfaces);
+%End
     QMediaContent media() const;
     const QIODevice *mediaStream() const;
     QMediaPlaylist *playlist() const;

@@ -192,6 +192,14 @@ public:
 %If (Qt_5_13_0 -)
     QVector<QOcspResponse> ocspResponses() const;
 %End
+%If (Qt_5_15_0 -)
+    QList<QSslError> sslHandshakeErrors() const;
+%End
+
+signals:
+%If (Qt_5_15_0 -)
+    void newSessionTicketReceived();
+%End
 };
 
 %End

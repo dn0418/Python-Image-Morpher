@@ -117,7 +117,7 @@ Py_ssize_t idx = sipConvertFromSequenceIndex(a0, sipCpp->count());
 if (idx < 0)
     sipIsErr = 1;
 else
-    sipRes = new QXmlStreamAttribute(sipCpp->operator[]((int)idx));
+    sipRes = &sipCpp->operator[]((int)idx);
 %End
 
 // Some additional Python special methods.
@@ -191,7 +191,7 @@ else
 }
 %End
 
-QXmlStreamAttributes &operator[](SIP_PYSLICE slice);
+QXmlStreamAttributes operator[](SIP_PYSLICE slice);
 %MethodCode
 Py_ssize_t start, stop, step, slicelength;
 
@@ -386,6 +386,12 @@ public:
     QXmlStreamEntityResolver *entityResolver() const;
     bool readNextStartElement();
     void skipCurrentElement();
+%If (Qt_5_15_0 -)
+    int entityExpansionLimit() const;
+%End
+%If (Qt_5_15_0 -)
+    void setEntityExpansionLimit(int limit);
+%End
 
 private:
     QXmlStreamReader(const QXmlStreamReader &);

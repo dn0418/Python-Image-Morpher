@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Natural Language Toolkit: Chart Parser for Feature-Based Grammars
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Author: Rob Speer <rspeer@mit.edu>
 #         Peter Ljunglöf <peter.ljunglof@heatherleaf.se>
 # URL: <http://nltk.org/>
@@ -11,11 +11,8 @@
 Extension of chart parsing implementation to handle grammars with
 feature structures as nodes.
 """
-from __future__ import print_function, unicode_literals
+from time import perf_counter
 
-from six.moves import range
-
-from nltk.compat import python_2_unicode_compatible
 from nltk.featstruct import FeatStruct, unify, TYPE, find_variables
 from nltk.sem import logic
 from nltk.tree import Tree
@@ -47,7 +44,6 @@ from nltk.parse.chart import (
 # ////////////////////////////////////////////////////////////
 
 
-@python_2_unicode_compatible
 class FeatureTreeEdge(TreeEdge):
     """
     A specialized tree edge that allows shared variable bindings
@@ -149,12 +145,12 @@ class FeatureTreeEdge(TreeEdge):
 
     def __str__(self):
         if self.is_complete():
-            return TreeEdge.__unicode__(self)
+            return super().__str__()
         else:
-            bindings = '{%s}' % ', '.join(
-                '%s: %r' % item for item in sorted(self._bindings.items())
+            bindings = "{%s}" % ", ".join(
+                "%s: %r" % item for item in sorted(self._bindings.items())
             )
-            return '%s %s' % (TreeEdge.__unicode__(self), bindings)
+            return "%s %s" % (super().__str__(), bindings)
 
 
 # ////////////////////////////////////////////////////////////
@@ -201,7 +197,7 @@ class FeatureChart(Chart):
         # Make sure it's a valid index.
         for key in restr_keys:
             if not hasattr(EdgeI, key):
-                raise ValueError('Bad restriction: %s' % key)
+                raise ValueError("Bad restriction: %s" % key)
 
         # Create the index.
         index = self._indexes[restr_keys] = {}
@@ -587,7 +583,7 @@ class InstantiateVarsChart(FeatureChart):
         return dict(
             (var, logic.unique_variable())
             for var in edge.lhs().variables()
-            if var.name.startswith('@')
+            if var.name.startswith("@")
         )
 
 
@@ -630,7 +626,7 @@ def demo(
     print_sentence=True,
     trace=1,
     parser=FeatureChartParser,
-    sent='I saw John with a dog with my cookie',
+    sent="I saw John with a dog with my cookie",
 ):
     import sys, time
 
@@ -643,12 +639,12 @@ def demo(
     if print_sentence:
         print("Sentence:", sent)
     tokens = sent.split()
-    t = time.clock()
+    t = perf_counter()
     cp = parser(grammar, trace=trace)
     chart = cp.chart_parse(tokens)
     trees = list(chart.parses(grammar.start()))
     if print_times:
-        print("Time: %s" % (time.clock() - t))
+        print("Time: %s" % (perf_counter() - t))
     if print_trees:
         for tree in trees:
             print(tree)
@@ -659,22 +655,22 @@ def demo(
 def run_profile():
     import profile
 
-    profile.run('for i in range(1): demo()', '/tmp/profile.out')
+    profile.run("for i in range(1): demo()", "/tmp/profile.out")
     import pstats
 
-    p = pstats.Stats('/tmp/profile.out')
-    p.strip_dirs().sort_stats('time', 'cum').print_stats(60)
-    p.strip_dirs().sort_stats('cum', 'time').print_stats(60)
+    p = pstats.Stats("/tmp/profile.out")
+    p.strip_dirs().sort_stats("time", "cum").print_stats(60)
+    p.strip_dirs().sort_stats("cum", "time").print_stats(60)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from nltk.data import load
 
     demo()
     print()
-    grammar = load('grammars/book_grammars/feat0.fcfg')
+    grammar = load("grammars/book_grammars/feat0.fcfg")
     cp = FeatureChartParser(grammar, trace=2)
-    sent = 'Kim likes children'
+    sent = "Kim likes children"
     tokens = sent.split()
     trees = cp.parse(tokens)
     for tree in trees:

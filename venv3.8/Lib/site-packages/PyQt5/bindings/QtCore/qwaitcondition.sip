@@ -30,10 +30,10 @@ public:
     QWaitCondition();
     ~QWaitCondition();
     bool wait(QMutex *mutex, unsigned long msecs = ULONG_MAX) /ReleaseGIL/;
-    bool wait(QReadWriteLock *readWriteLock, unsigned long msecs = ULONG_MAX) /ReleaseGIL/;
 %If (Qt_5_12_0 -)
     bool wait(QMutex *lockedMutex, QDeadlineTimer deadline) /ReleaseGIL/;
 %End
+    bool wait(QReadWriteLock *readWriteLock, unsigned long msecs = ULONG_MAX) /ReleaseGIL/;
 %If (Qt_5_12_0 -)
     bool wait(QReadWriteLock *lockedReadWriteLock, QDeadlineTimer deadline) /ReleaseGIL/;
 %End

@@ -54,6 +54,9 @@ public:
     QQmlIncubator::IncubationMode incubationMode() const;
     QQmlIncubator::Status status() const;
     QObject *object() const /Factory/;
+%If (Qt_5_15_0 -)
+    void setInitialProperties(const QVariantMap &initialProperties);
+%End
 
 protected:
     virtual void statusChanged(QQmlIncubator::Status);

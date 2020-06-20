@@ -37,6 +37,9 @@ public:
     QString component() const;
     QVersionNumber version() const;
     static QCompressedHelpInfo fromCompressedHelpFile(const QString &documentationFileName);
+%If (Qt_5_15_0 -)
+    bool isNull() const;
+%End
 };
 
 %End

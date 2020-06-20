@@ -44,4 +44,16 @@ public:
     QObject *at(int) const;
     bool clear() const;
     int count() const;
+%If (Qt_5_15_0 -)
+    bool canReplace() const;
+%End
+%If (Qt_5_15_0 -)
+    bool canRemoveLast() const;
+%End
+%If (Qt_5_15_0 -)
+    bool replace(int, QObject *) const;
+%End
+%If (Qt_5_15_0 -)
+    bool removeLast() const;
+%End
 };

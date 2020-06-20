@@ -1,11 +1,9 @@
 # Natural Language Toolkit: Aligned Corpus Reader
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # URL: <http://nltk.org/>
 # Author: Steven Bird <stevenbird1@gmail.com>
 # For license information, see LICENSE.TXT
-
-from six import string_types
 
 from nltk.tokenize import WhitespaceTokenizer, RegexpTokenizer
 from nltk.translate import AlignedSent, Alignment
@@ -28,11 +26,11 @@ class AlignedCorpusReader(CorpusReader):
         self,
         root,
         fileids,
-        sep='/',
+        sep="/",
         word_tokenizer=WhitespaceTokenizer(),
-        sent_tokenizer=RegexpTokenizer('\n', gaps=True),
+        sent_tokenizer=RegexpTokenizer("\n", gaps=True),
         alignedsent_block_reader=read_alignedsent_block,
-        encoding='latin1',
+        encoding="latin1",
     ):
         """
         Construct a new Aligned Corpus reader for a set of documents
@@ -57,7 +55,7 @@ class AlignedCorpusReader(CorpusReader):
         """
         if fileids is None:
             fileids = self._fileids
-        elif isinstance(fileids, string_types):
+        elif isinstance(fileids, str):
             fileids = [fileids]
         return concat([self.open(f).read() for f in fileids])
 

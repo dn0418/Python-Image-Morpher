@@ -41,7 +41,7 @@ public:
 
     enum Filtering
     {
-        None,
+        None /PyName=None_/,
         Nearest,
         Linear,
     };
@@ -84,6 +84,22 @@ public:
 %End
 %If (Qt_5_14_0 -)
     int comparisonKey() const;
+%End
+%If (Qt_5_15_0 -)
+
+    struct NativeTexture
+    {
+%TypeHeaderCode
+#include <qsgtexture.h>
+%End
+
+        const void *object;
+        int layout;
+    };
+
+%End
+%If (Qt_5_15_0 -)
+    QSGTexture::NativeTexture nativeTexture() const;
 %End
 };
 

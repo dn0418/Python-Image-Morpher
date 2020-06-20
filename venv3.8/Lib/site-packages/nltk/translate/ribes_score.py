@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 # Natural Language Toolkit: RIBES Score
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Contributors: Katsuhito Sudoh, Liling Tan, Kasramvd, J.F.Sebastian
 #               Mark Byers, ekhumoro, P. Ortiz
 # URL: <http://nltk.org/>
 # For license information, see LICENSE.TXT
 """ RIBES score implementation """
-from __future__ import division
+
 from itertools import islice
 import math
 

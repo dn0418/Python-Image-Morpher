@@ -32,4 +32,24 @@ public:
     virtual void run() = 0 /NewThread/;
     bool autoDelete() const;
     void setAutoDelete(bool _autoDelete);
+%If (Qt_5_15_0 -)
+    static QRunnable *create(SIP_PYCALLABLE functionToRun /KeepReference,TypeHint="Callable[[], None]"/) /Factory/;
+%MethodCode
+        sipRes = QRunnable::create([a0]() {
+            SIP_BLOCK_THREADS
+        
+            PyObject *res;
+        
+            res = PyObject_CallObject(a0, NULL);
+        
+            if (res)
+                Py_DECREF(res);
+            else
+                pyqt5_err_print();
+        
+            SIP_UNBLOCK_THREADS
+        });
+%End
+
+%End
 };

@@ -1,6 +1,6 @@
 # Natural Language Toolkit: API for Corpus Readers
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Author: Steven Bird <stevenbird1@gmail.com>
 #         Edward Loper <edloper@gmail.com>
 # URL: <http://nltk.org/>
@@ -9,22 +9,17 @@
 """
 API for corpus readers.
 """
-from __future__ import unicode_literals
 
 import os
 import re
 from collections import defaultdict
 from itertools import chain
 
-from six import string_types
-
-from nltk import compat
 from nltk.data import PathPointer, FileSystemPathPointer, ZipFilePathPointer
 
 from nltk.corpus.reader.util import *
 
 
-@compat.python_2_unicode_compatible
 class CorpusReader(object):
     """
     A base class for "corpus reader" classes, each of which can be
@@ -44,7 +39,7 @@ class CorpusReader(object):
     be used to select which portion of the corpus should be returned.
     """
 
-    def __init__(self, root, fileids, encoding='utf8', tagset=None):
+    def __init__(self, root, fileids, encoding="utf8", tagset=None):
         """
         :type root: PathPointer or str
         :param root: A path pointer identifying the root directory for
@@ -76,18 +71,18 @@ class CorpusReader(object):
               tagged_...() methods.
         """
         # Convert the root to a path pointer, if necessary.
-        if isinstance(root, string_types) and not isinstance(root, PathPointer):
-            m = re.match('(.*\.zip)/?(.*)$|', root)
+        if isinstance(root, str) and not isinstance(root, PathPointer):
+            m = re.match("(.*\.zip)/?(.*)$|", root)
             zipfile, zipentry = m.groups()
             if zipfile:
                 root = ZipFilePathPointer(zipfile, zipentry)
             else:
                 root = FileSystemPathPointer(root)
         elif not isinstance(root, PathPointer):
-            raise TypeError('CorpusReader: expected a string or a PathPointer')
+            raise TypeError("CorpusReader: expected a string or a PathPointer")
 
         # If `fileids` is a regexp, then expand it.
-        if isinstance(fileids, string_types):
+        if isinstance(fileids, str):
             fileids = find_corpus_fileids(root, fileids)
 
         self._fileids = fileids
@@ -117,10 +112,10 @@ class CorpusReader(object):
 
     def __repr__(self):
         if isinstance(self._root, ZipFilePathPointer):
-            path = '%s/%s' % (self._root.zipfile.filename, self._root.entry)
+            path = "%s/%s" % (self._root.zipfile.filename, self._root.entry)
         else:
-            path = '%s' % self._root.path
-        return '<%s in %r>' % (self.__class__.__name__, path)
+            path = "%s" % self._root.path
+        return "<%s in %r>" % (self.__class__.__name__, path)
 
     def ensure_loaded(self):
         """
@@ -187,7 +182,7 @@ class CorpusReader(object):
         """
         if fileids is None:
             fileids = self._fileids
-        elif isinstance(fileids, string_types):
+        elif isinstance(fileids, str):
             fileids = [fileids]
 
         paths = [self._root.join(f) for f in fileids]
@@ -288,26 +283,26 @@ class CategorizedCorpusReader(object):
         self._file = None  #: fileid of file containing the mapping
         self._delimiter = None  #: delimiter for ``self._file``
 
-        if 'cat_pattern' in kwargs:
-            self._pattern = kwargs['cat_pattern']
-            del kwargs['cat_pattern']
-        elif 'cat_map' in kwargs:
-            self._map = kwargs['cat_map']
-            del kwargs['cat_map']
-        elif 'cat_file' in kwargs:
-            self._file = kwargs['cat_file']
-            del kwargs['cat_file']
-            if 'cat_delimiter' in kwargs:
-                self._delimiter = kwargs['cat_delimiter']
-                del kwargs['cat_delimiter']
+        if "cat_pattern" in kwargs:
+            self._pattern = kwargs["cat_pattern"]
+            del kwargs["cat_pattern"]
+        elif "cat_map" in kwargs:
+            self._map = kwargs["cat_map"]
+            del kwargs["cat_map"]
+        elif "cat_file" in kwargs:
+            self._file = kwargs["cat_file"]
+            del kwargs["cat_file"]
+            if "cat_delimiter" in kwargs:
+                self._delimiter = kwargs["cat_delimiter"]
+                del kwargs["cat_delimiter"]
         else:
             raise ValueError(
-                'Expected keyword argument cat_pattern or ' 'cat_map or cat_file.'
+                "Expected keyword argument cat_pattern or " "cat_map or cat_file."
             )
 
-        if 'cat_pattern' in kwargs or 'cat_map' in kwargs or 'cat_file' in kwargs:
+        if "cat_pattern" in kwargs or "cat_map" in kwargs or "cat_file" in kwargs:
             raise ValueError(
-                'Specify exactly one of: cat_pattern, ' 'cat_map, cat_file.'
+                "Specify exactly one of: cat_pattern, " "cat_map, cat_file."
             )
 
     def _init(self):
@@ -330,8 +325,8 @@ class CategorizedCorpusReader(object):
                 file_id, categories = line.split(self._delimiter, 1)
                 if file_id not in self.fileids():
                     raise ValueError(
-                        'In category mapping file %s: %s '
-                        'not found' % (self._file, file_id)
+                        "In category mapping file %s: %s "
+                        "not found" % (self._file, file_id)
                     )
                 for category in categories.split(self._delimiter):
                     self._add(file_id, category)
@@ -349,7 +344,7 @@ class CategorizedCorpusReader(object):
             self._init()
         if fileids is None:
             return sorted(self._c2f)
-        if isinstance(fileids, string_types):
+        if isinstance(fileids, str):
             fileids = [fileids]
         return sorted(set.union(*[self._f2c[d] for d in fileids]))
 
@@ -360,13 +355,13 @@ class CategorizedCorpusReader(object):
         """
         if categories is None:
             return super(CategorizedCorpusReader, self).fileids()
-        elif isinstance(categories, string_types):
+        elif isinstance(categories, str):
             if self._f2c is None:
                 self._init()
             if categories in self._c2f:
                 return sorted(self._c2f[categories])
             else:
-                raise ValueError('Category %s not found' % categories)
+                raise ValueError("Category %s not found" % categories)
         else:
             if self._f2c is None:
                 self._init()
@@ -408,7 +403,7 @@ class SyntaxCorpusReader(CorpusReader):
     def raw(self, fileids=None):
         if fileids is None:
             fileids = self._fileids
-        elif isinstance(fileids, string_types):
+        elif isinstance(fileids, str):
             fileids = [fileids]
         return concat([self.open(f).read() for f in fileids])
 

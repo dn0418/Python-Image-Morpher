@@ -140,6 +140,33 @@ public:
 %If (Qt_5_12_0 -)
     qint64 bytesToWrite() const;
 %End
+%If (Qt_5_15_0 -)
+    void setMaxAllowedIncomingFrameSize(quint64 maxAllowedIncomingFrameSize);
+%End
+%If (Qt_5_15_0 -)
+    quint64 maxAllowedIncomingFrameSize() const;
+%End
+%If (Qt_5_15_0 -)
+    void setMaxAllowedIncomingMessageSize(quint64 maxAllowedIncomingMessageSize);
+%End
+%If (Qt_5_15_0 -)
+    quint64 maxAllowedIncomingMessageSize() const;
+%End
+%If (Qt_5_15_0 -)
+    static quint64 maxIncomingMessageSize();
+%End
+%If (Qt_5_15_0 -)
+    static quint64 maxIncomingFrameSize();
+%End
+%If (Qt_5_15_0 -)
+    void setOutgoingFrameSize(quint64 outgoingFrameSize);
+%End
+%If (Qt_5_15_0 -)
+    quint64 outgoingFrameSize() const;
+%End
+%If (Qt_5_15_0 -)
+    static quint64 maxOutgoingFrameSize();
+%End
 };
 
 %End

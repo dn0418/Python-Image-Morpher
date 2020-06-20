@@ -84,8 +84,14 @@ public:
 %If (Qt_5_8_0 -)
         HTTP2AllowedAttribute,
 %End
+%If (Qt_5_15_0 -)
+        Http2AllowedAttribute,
+%End
 %If (Qt_5_8_0 -)
         HTTP2WasUsedAttribute,
+%End
+%If (Qt_5_15_0 -)
+        Http2WasUsedAttribute,
 %End
 %If (Qt_5_9_0 -)
         OriginalContentLengthAttribute,
@@ -178,5 +184,19 @@ public:
 %End
 %If (Qt_5_14_0 -)
     void setHttp2Configuration(const QHttp2Configuration &configuration);
+%End
+%If (Qt_5_15_0 -)
+
+    enum TransferTimeoutConstant
+    {
+        DefaultTransferTimeoutConstant,
+    };
+
+%End
+%If (Qt_5_15_0 -)
+    int transferTimeout() const;
+%End
+%If (Qt_5_15_0 -)
+    void setTransferTimeout(int timeout = QNetworkRequest::TransferTimeoutConstant::DefaultTransferTimeoutConstant);
 %End
 };

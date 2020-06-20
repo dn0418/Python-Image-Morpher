@@ -1,6 +1,6 @@
 # Natural Language Toolkit: Chunked Corpus Reader
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Author: Steven Bird <stevenbird1@gmail.com>
 #         Edward Loper <edloper@gmail.com>
 # URL: <http://nltk.org/>
@@ -12,8 +12,6 @@ documents.
 """
 
 import os.path, codecs
-
-from six import string_types
 
 import nltk
 from nltk.corpus.reader.bracket_parse import BracketParseCorpusReader
@@ -40,11 +38,11 @@ class ChunkedCorpusReader(CorpusReader):
         self,
         root,
         fileids,
-        extension='',
+        extension="",
         str2chunktree=tagstr2tree,
-        sent_tokenizer=RegexpTokenizer('\n', gaps=True),
+        sent_tokenizer=RegexpTokenizer("\n", gaps=True),
         para_block_reader=read_blankline_block,
-        encoding='utf8',
+        encoding="utf8",
         tagset=None,
     ):
         """
@@ -63,7 +61,7 @@ class ChunkedCorpusReader(CorpusReader):
         """
         if fileids is None:
             fileids = self._fileids
-        elif isinstance(fileids, string_types):
+        elif isinstance(fileids, str):
             fileids = [fileids]
         return concat([self.open(f).read() for f in fileids])
 
@@ -281,5 +279,5 @@ class ChunkedCorpusView(StreamBackedCorpusView):
             elif isinstance(child, tuple):
                 tree[i] = child[0]
             else:
-                raise ValueError('expected child to be Tree or tuple')
+                raise ValueError("expected child to be Tree or tuple")
         return tree

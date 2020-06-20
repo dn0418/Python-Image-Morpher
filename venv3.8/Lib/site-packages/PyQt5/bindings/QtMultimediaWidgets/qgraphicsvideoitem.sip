@@ -52,6 +52,11 @@ protected:
     virtual void timerEvent(QTimerEvent *event);
     virtual QVariant itemChange(QGraphicsItem::GraphicsItemChange change, const QVariant &value);
     virtual bool setMediaObject(QMediaObject *object);
+
+public:
+%If (Qt_5_15_0 -)
+    QAbstractVideoSurface *videoSurface() const;
+%End
 };
 
 %ModuleCode

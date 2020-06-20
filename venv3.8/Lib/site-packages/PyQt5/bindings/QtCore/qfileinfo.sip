@@ -104,6 +104,9 @@ public:
 %If (Qt_5_14_0 -)
     bool isShortcut() const;
 %End
+%If (Qt_5_15_0 -)
+    bool isJunction() const;
+%End
 };
 
 typedef QList<QFileInfo> QFileInfoList;

@@ -125,8 +125,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
 
         self.triangleBox.setEnabled(1)
         i = 0
+        counter = 0
         while i < 4:
-            if tempLeft[i] not in self.confirmed_left_points:
+            if tempLeft[i] not in self.confirmed_left_points and tempLeft[i] not in self.chosen_left_points:
+                counter += 1
                 self.currentWindow = 0
                 self.leftUpdate = 1
                 self.rightUpdate = 0
@@ -165,6 +167,14 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 self.rightUpdate = 1
                 self.paintEvent(1)
             i += 1
+
+        if counter:
+            if counter == 1:
+                self.notificationLine.setText(" Successfully added " + str(counter) + " new corner point.")
+            else:
+                self.notificationLine.setText(" Successfully added " + str(counter) + " new corner points.")
+        else:
+            self.notificationLine.setText(" Failed to add any new corner points.")
 
         self.currentWindow = 0
         self.enableDeletion = 0
@@ -212,6 +222,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 self.persistFlag = 0
                 self.refreshPaint()
                 self.currentWindow = 0
+        self.notificationLine.setText(" Successfully reset points.")
 
     # Function that handles the rendering of points and triangles onto the GUI when manually called.
     # Dynamically handles changes in point and polygon lists to be compatible with resetPoints, autoCorner, etc.
@@ -473,11 +484,11 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                         self.refreshPaint()
                         undoFlag = 1
             if undoFlag == 0:
-                print("Can't undo!")
+                self.notificationLine.setText(" Can't undo!")
 
         # Redo
         elif type(key_event) == QtGui.QKeyEvent and key_event.modifiers() == QtCore.Qt.ControlModifier and key_event.key() == QtCore.Qt.Key_Y:
-            ...
+            self.notificationLine.setText(" This hasn't been implemented yet. ;)")
         # Delete recent temp
         elif type(key_event) == QtGui.QKeyEvent and key_event.key() == QtCore.Qt.Key_Backspace:
             if self.leftOn and self.rightOn and self.enableDeletion == 1:
@@ -487,7 +498,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.currentWindow = 1
                     self.persistFlag = 0
                     self.refreshPaint()
-
+                    self.notificationLine.setText(" Successfully deleted recent temporary point.")
                 elif self.currentWindow == 1:
                     self.added_left_points.pop(len(self.added_left_points)-1)
                     self.currentWindow = 0
@@ -495,6 +506,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.persistFlag = 0
                     self.paintEvent(1)
                     self.autoCornerButton.setEnabled(1)
+                    self.notificationLine.setText(" Successfully deleted recent temporary point.")
 
     # Function override of the window resize event. Fairly lightweight.
     # Currently just recalculates the necessary scalar values to keep image displays and point placements accurate.
@@ -551,6 +563,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.displayTriangles()
                     self.autoCornerButton.setEnabled(1)
                     self.resetPointsButton.setEnabled(1)
+                    self.notificationLine.setText(" Successfully confirmed set of added points.")
                 if self.leftMinX < cursor_event.pos().x() < self.leftMaxX and self.minY < cursor_event.pos().y() < self.maxY:
                     leftCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.leftMinX)*self.leftScalar[0]), int((cursor_event.pos().y()-self.minY)*self.leftScalar[1]))
                     self.leftUpdate = 1
@@ -561,6 +574,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.persistFlag = 0
                     self.enableDeletion = 1
                     self.autoCornerButton.setEnabled(0)
+                    self.notificationLine.setText(" Successfully added left temporary point.")
             elif self.currentWindow == 1:
                 if self.rightMinX < cursor_event.pos().x() < self.rightMaxX and self.minY < cursor_event.pos().y() < self.maxY:
                     rightCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.rightMinX)*self.rightScalar[0]), int((cursor_event.pos().y()-self.minY)*self.rightScalar[1]))
@@ -571,6 +585,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.currentWindow = 0
                     self.enableDeletion = 1
                     self.persistFlag = 2
+                    self.notificationLine.setText(" Successfully added right temporary point.")
             if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)):
                 if (len(self.chosen_left_points) + len(self.confirmed_left_points)) >= 3:
                     if (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
@@ -584,6 +599,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     # (This is disabled by default, as transparency is often unused and reduces performance.)
     def transparencyUpdate(self):
         self.transparencySetting = int(self.transparencyBox.isChecked())
+        if self.transparencyBox.isChecked():
+            self.notificationLine.setText(" Successfully enabled transparency layer.")
+        else:
+            self.notificationLine.setText(" Successfully disabled transparency layer.")
 
     # Function that dynamically updates the list of triangles for the image pair provided, when manually invoked.
     # When a process wants to see triangles update properly, THIS is what needs to be called (not self.triangleUpdate).
@@ -640,6 +659,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     # Simple function that rounds the desired alpha value to the nearest 0.05 increment.
     def updateAlpha(self):
         value = format(round((self.alphaSlider.value() / 20) / 0.05) * 0.05, ".2f")
+        self.notificationLine.setText(" Alpha value changed from " + self.alphaValue.text() + " to " + str(value) + ".")
         self.alphaValue.setText(str(value))
 
     # Function that handles behavior when the user wishes to blend the two calibrated images.
@@ -658,16 +678,16 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         right = imageio.imread(self.endingImagePath)
         leftARR = np.asarray(left)
         rightARR = np.asarray(right)
-
+        self.notificationLine.setText(" Beginning morph.")
         if len(left.shape) < 3 and len(right.shape) < 3:  # if grayscale
-            print("Grayscale")
+            self.notificationLine.setText(" Beginning grayscale morph.")
             grayScale = Morpher(leftARR, triangleTuple[0], rightARR, triangleTuple[1])
             start_time = time.time()
             blendARR = grayScale.getImageAtAlpha(float(self.alphaValue.text()), 0)
-            print("Morph took " + str(time.time() - start_time) + " seconds.\n")
+            self.notificationLine.setText(" Morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
             blendImage = QtGui.QImage(blendARR.data, blendARR.shape[1], blendARR.shape[0], QtGui.QImage.Format_Grayscale8)
         elif not self.leftPNG or not self.rightPNG or not self.transparencySetting or (len(left.shape) == 3 and len(right.shape) == 3):  # if color, no alpha (.JPG)
-            print("RGB (.jpg)")
+            self.notificationLine.setText(" Beginning RGB (.jpg) morph.")
             leftColorValueR = []
             leftColorValueG = []
             leftColorValueB = []
@@ -707,7 +727,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             pool.close()
             pool.terminate()
             pool.join()
-            print("Morph took " + str(time.time() - start_time) + " seconds.\n")
+            self.notificationLine.setText(" Morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
 
             xCount = 0
             blendARR = []
@@ -720,7 +740,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             blendARR = np.array(blendARR, np.uint8).reshape(self.leftSize[1], self.leftSize[0], 3)
             blendImage = QtGui.QImage(blendARR.data, blendARR.shape[1], blendARR.shape[0], QtGui.QImage.Format_RGB888)
         elif self.leftPNG and self.rightPNG and self.transparencySetting and len(left.shape) == 4 and len(right.shape) == 4:   # if color, alpha (.PNG)
-            print("RGBA (.png)")
+            self.notificationLine.setText(" Beginning RGBA (.png) morph.")
             leftColorValueR = []
             leftColorValueG = []
             leftColorValueB = []
@@ -769,7 +789,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             pool.close()
             pool.terminate()
             pool.join()
-            print("Morph took " + str(time.time() - start_time) + " seconds.\n")
+            self.notificationLine.setText(" Morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
 
             xCount = 0
             blendARR = []
@@ -782,7 +802,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             blendARR = np.array(blendARR, np.uint8).reshape(self.leftSize[1], self.leftSize[0], 4)
             blendImage = QtGui.QImage(blendARR.data, blendARR.shape[1], blendARR.shape[0], QtGui.QImage.Format_RGBA8888)
         else:
-            print('Generic Catching Error: Check image file types..')
+            self.notificationLine.setText(" Generic Catching Error: Check image file types..")
         self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(blendImage))
         self.blendingImage.setScaledContents(1)
 
@@ -791,6 +811,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         if not filePath:
             return
 
+        self.notificationLine.setText(" Left image loaded.")
         if self.triangleBox.isChecked():
             self.triangleUpdatePref = 1
         else:
@@ -877,6 +898,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         if not filePath:
             return
 
+        self.notificationLine.setText(" Right image loaded.")
         if self.triangleBox.isChecked():
             self.triangleUpdatePref = 1
         else:

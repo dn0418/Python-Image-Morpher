@@ -93,6 +93,16 @@ public:
 %If (Qt_5_12_0 -)
     QString subjectDisplayName() const;
 %End
+%If (Qt_5_15_0 -)
+
+    enum class PatternSyntax
+    {
+        RegularExpression,
+        Wildcard,
+        FixedString,
+    };
+
+%End
 };
 
 %End

@@ -199,6 +199,9 @@ public:
 %If (Qt_5_14_0 -)
     int relativePropertyIndex() const;
 %End
+%If (Qt_5_15_0 -)
+    bool isRequired() const;
+%End
 };
 
 class QMetaClassInfo

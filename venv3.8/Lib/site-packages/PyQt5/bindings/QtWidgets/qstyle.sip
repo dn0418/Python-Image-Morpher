@@ -261,6 +261,9 @@ public:
 %If (Qt_5_7_0 -)
         SE_TabBarTearIndicatorRight,
 %End
+%If (Qt_5_15_0 -)
+        SE_PushButtonBevel,
+%End
         SE_CustomBase,
     };
 

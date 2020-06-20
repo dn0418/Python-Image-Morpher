@@ -58,4 +58,10 @@ public:
     static QFileDevice::Permissions permissions(const QString &filename);
     virtual bool setPermissions(QFileDevice::Permissions permissionSpec);
     static bool setPermissions(const QString &filename, QFileDevice::Permissions permissionSpec);
+%If (Qt_5_15_0 -)
+    bool moveToTrash();
+%End
+%If (Qt_5_15_0 -)
+    static bool moveToTrash(const QString &fileName, QString *pathInTrash /Out/ = 0);
+%End
 };

@@ -88,6 +88,9 @@ public:
     virtual bool canDropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) const;
     virtual bool dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent);
     virtual QSize span(const QModelIndex &index) const;
+%If (Qt_5_15_0 -)
+    QList<QAbstractItemModel *> sourceModels() const;
+%End
 };
 
 %End

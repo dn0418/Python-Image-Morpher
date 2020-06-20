@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Natural Language Toolkit: An Incremental Earley Chart Parser
 #
-# Copyright (C) 2001-2019 NLTK Project
+# Copyright (C) 2001-2020 NLTK Project
 # Author: Peter Ljunglöf <peter.ljunglof@heatherleaf.se>
 #         Rob Speer <rspeer@mit.edu>
 #         Edward Loper <edloper@gmail.com>
@@ -25,9 +25,8 @@ This is appealing for, say, speech recognizer hypothesis filtering.
 The main parser class is ``EarleyChartParser``, which is a top-down
 algorithm, originally formulated by Jay Earley (1970).
 """
-from __future__ import print_function, division
 
-from six.moves import range
+from time import perf_counter
 
 from nltk.parse.chart import (
     Chart,
@@ -100,7 +99,7 @@ class IncrementalChart(Chart):
         # Make sure it's a valid index.
         for key in restr_keys:
             if not hasattr(EdgeI, key):
-                raise ValueError('Bad restriction: %s' % key)
+                raise ValueError("Bad restriction: %s" % key)
 
         # Create the index.
         index = self._indexes[restr_keys] = tuple({} for x in self._positions())
@@ -150,7 +149,7 @@ class FeatureIncrementalChart(IncrementalChart, FeatureChart):
         # Make sure it's a valid index.
         for key in restr_keys:
             if not hasattr(EdgeI, key):
-                raise ValueError('Bad restriction: %s' % key)
+                raise ValueError("Bad restriction: %s" % key)
 
         # Create the index.
         index = self._indexes[restr_keys] = tuple({} for x in self._positions())
@@ -511,7 +510,7 @@ def demo(
     print_grammar=False,
     print_trees=True,
     trace=2,
-    sent='I saw John with a dog with my cookie',
+    sent="I saw John with a dog with my cookie",
     numparses=5,
 ):
     """
@@ -535,14 +534,14 @@ def demo(
 
     # Do the parsing.
     earley = EarleyChartParser(grammar, trace=trace)
-    t = time.clock()
+    t = perf_counter()
     chart = earley.chart_parse(tokens)
     parses = list(chart.parses(grammar.start()))
-    t = time.clock() - t
+    t = perf_counter() - t
 
     # Print results.
     if numparses:
-        assert len(parses) == numparses, 'Not all parses found'
+        assert len(parses) == numparses, "Not all parses found"
     if print_trees:
         for tree in parses:
             print(tree)
@@ -552,5 +551,5 @@ def demo(
         print("Time:", t)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     demo()
