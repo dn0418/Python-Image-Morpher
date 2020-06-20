@@ -5,6 +5,7 @@ What began in Spring 2019 (detailed in <b>readme_general.pdf</b>, <b>readme_phas
 
 <p align="center">
   <img width="469" height="470" src="https://i.imgur.com/BJkzrfL.jpg">
+  GUI Required for ECE 36400
 </p>
 
 Now that I'm no longer in this course and the source code is mine to freely modify, I've taken it upon myself to improve this image morphing application in my leisure as a for-fun project. At the time of the creation of this README, meaningful changes include (but are, in no capacity, limited to):
