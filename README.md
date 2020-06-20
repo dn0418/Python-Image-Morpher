@@ -24,6 +24,8 @@ Now that I'm no longer in this course and the source code is mine to freely modi
   <i>Redesigned & Resizable GUI (WIP)</i>
 </p>
 
+I have included the project's current Python interpreter in this repository, so it should <i>theoretically</i> be plug and play, should you wish to download and experiment with the program yourself.
+
 In the future, I plan to continue improving on this neat little program. Currently, I have ideas regarding:
 
 - [ ] Color Picker Widget (User may specify color used for added/confirmed/chosen points and triangles)
