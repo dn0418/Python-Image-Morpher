@@ -15,7 +15,7 @@ Now that I'm no longer in this course and the source code is mine to freely modi
 * GUI Overhaul
 * Resizing
 * Added Functionality 
-  * Reset, Undo, Add Corners, Transparency Toggle
+  * Reset, Undo, Add Corners, Transparency Toggle, Logging
 * And other general cleanup, bugfixes, polish, etc.
 
 
