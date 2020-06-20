@@ -1,2 +1,2 @@
-# Morphing
-This is my project.
+# Image Morpher
+This is my personal project that began as a final assignment in Purdue University's ECE 36400 - Software Engineering Tools Lab. The assignment (detailed in readme_general.pdf, readme_phase1.pdf, and readme_phase2.pdf) required the usage of <b>delaunay triangulation, projective/affine transformation, application of projections through matrices, masking, and alpha blending</b> - all of which are still maintained with this project - in order to accomplish image morphing. A custom GUI was additionally required in order for users to place their own points to be used with the matrix math involved with this program.
