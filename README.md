@@ -16,7 +16,7 @@ Now that I'm no longer in this course and the source code is mine to freely modi
 * Resizing
 * Added Functionality 
   * Reset, Undo, Add Corners, Transparency Toggle
-And other general cleanup, bugfixes, polish, etc.
+* And other general cleanup, bugfixes, polish, etc.
 
 
 <p align="center">
