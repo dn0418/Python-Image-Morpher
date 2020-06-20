@@ -30,7 +30,7 @@ In the future, I plan to continue improving on this neat little program. Current
 
 - [ ] Color Picker Widget (User may specify color used for added/confirmed/chosen points and triangles)
 - [ ] Redo / CTRL + Y (User may redo an action that was previously undone or deleted)
-- [ ] Full Blend (User may toggle a flag that tells the program to render each 0.05 alpha increment blend)
+- [ ] Full Blend (User may toggle a flag that tells the program to render each 0.05 alpha increment blend and the slider would instead display each frame - this heavily relies on the next point)
 - [ ] Improved Performance (Currently, interpolation is the biggest bottleneck, second to the required matrix math)
 
 If you like what you see, feel free to contact me on [LinkedIn](https://www.linkedin.com/in/davidmilesdowd/).
