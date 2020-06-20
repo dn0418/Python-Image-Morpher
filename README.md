@@ -18,6 +18,7 @@ Now that I'm no longer in this course and the source code is mine to freely modi
   * Reset, Undo, Add Corners, Transparency Toggle
 And other general cleanup, bugfixes, polish, etc.
 
+
 <p align="center">
   <img width="632" height="622" src="https://i.imgur.com/mT0kTn9.jpg"><br>
   <i>Redesigned & Resizable GUI (WIP)</i>
