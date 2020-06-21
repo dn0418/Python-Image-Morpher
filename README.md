@@ -20,7 +20,7 @@ Now that I'm no longer in this course and the source code is mine to freely modi
 
 
 <p align="center">
-  <img width="632" height="622" src="https://i.imgur.com/8rBJRk6.jpg"><br>
+  <img width="632" height="580" src="https://i.imgur.com/8rBJRk6.jpg"><br>
   <i>Redesigned & Resizable GUI (WIP v2)</i>
 </p>
 
