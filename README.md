@@ -20,15 +20,15 @@ Now that I'm no longer in this course and the source code is mine to freely modi
 
 
 <p align="center">
-  <img width="632" height="622" src="https://i.imgur.com/mT0kTn9.jpg"><br>
-  <i>Redesigned & Resizable GUI (WIP)</i>
+  <img width="632" height="622" src="https://i.imgur.com/8rBJRk6.jpg"><br>
+  <i>Redesigned & Resizable GUI (WIP v2)</i>
 </p>
 
 I have included the project's current Python interpreter in this repository as well, so it should <i>theoretically</i> be plug and play, should you wish to download and experiment with the program yourself.
 
 In the future, I plan to continue improving on this neat little program. Currently, I have ideas regarding:
 
-- [ ] Color Picker Widget (User may specify color used for added/confirmed/chosen points and triangles)
+- [X] Color Picker Widget (User may specify color used for ~~added/confirmed/chosen points and~~ triangles)
 - [ ] Redo / CTRL + Y (User may redo an action that was previously undone or deleted)
 - [ ] Full Blend (User may toggle a flag that tells the program to render each 0.05 alpha increment blend and the slider would instead display each frame - this heavily relies on the next point)
 - [ ] Improved Performance (Currently, interpolation is the biggest bottleneck, second to the required matrix math)
