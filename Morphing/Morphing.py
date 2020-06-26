@@ -13,6 +13,7 @@ import scipy
 import time
 import matplotlib.pyplot as plt
 from scipy.spatial import Delaunay
+from scipy import ndimage
 from scipy.interpolate import RectBivariateSpline
 from matplotlib.path import Path
 import numpy as np
@@ -20,6 +21,7 @@ from PIL import Image
 from pycallgraph import PyCallGraph
 from pycallgraph.output import GraphvizOutput
 import itertools
+import math
 
 ...
 
@@ -126,13 +128,11 @@ class Morpher:
         self.rightTriangles = rightTriangles  # Not of type np.uint8
 
     def getImageAtAlpha(self, alpha, mode):
-        leftCopy = self.leftImage
-        rightCopy = self.rightImage
         xRange = np.arange(0, self.leftImage.shape[1], 1)
         yRange = np.arange(0, self.leftImage.shape[0], 1)
         leftInterpolation = RectBivariateSpline(yRange, xRange, self.leftImage)
         rightInterpolation = RectBivariateSpline(yRange, xRange, self.rightImage)
-
+        # newTargetTriangleList = [Triangle((leftTriangle.vertices + (rightTriangle.vertices - leftTriangle.vertices) * alpha)) for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles)]
         for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles):
             targetTriangle = Triangle((leftTriangle.vertices + (rightTriangle.vertices - leftTriangle.vertices) * alpha))
             tempLeftMatrix = np.array([leftTriangle.vertices[0][0], leftTriangle.vertices[0][1], 1, 0, 0, 0, 0, 0, 0,
@@ -156,6 +156,7 @@ class Morpher:
             leftH = leftH.reshape(3, 3)
             rightH = np.array([righth[0][0], righth[1][0], righth[2][0], righth[3][0], righth[4][0], righth[5][0], 0, 0, 1])
             rightH = rightH.reshape(3, 3)
+            # can add .round(decimals=5) to the end of left and right invH to reduce precision, seems to have no negative visual effects
             leftinvH = np.linalg.inv(leftH)
             rightinvH = np.linalg.inv(rightH)
             targetPoints = targetTriangle.getPoints()
@@ -163,17 +164,56 @@ class Morpher:
                 x = np.array([x[0], x[1], 1]).reshape(3, 1)
                 leftSourcePoint = np.matmul(leftinvH, x)  # TODO: Roughly 21% of Bottleneck
                 rightSourcePoint = np.matmul(rightinvH, x)  # TODO: Roughly 21% of Bottleneck
-                leftCopy[int(x[1])][int(x[0])] = leftInterpolation(leftSourcePoint[1], leftSourcePoint[0])  # TODO: Roughly 29% of Bottleneck
-                rightCopy[int(x[1])][int(x[0])] = rightInterpolation(rightSourcePoint[1], rightSourcePoint[0])  # TODO: Roughly 29% of Bottleneck
-        self.leftImage = leftCopy
-        self.rightImage = rightCopy
+                self.leftImage[int(x[1])][int(x[0])] = leftInterpolation(leftSourcePoint[1], leftSourcePoint[0])  # TODO: Roughly 29% of Bottleneck
+                self.rightImage[int(x[1])][int(x[0])] = rightInterpolation(rightSourcePoint[1], rightSourcePoint[0])  # TODO: Roughly 29% of Bottleneck
         blendARR = ((1 - alpha) * self.leftImage + alpha * self.rightImage)
         blendARR = blendARR.astype(np.uint8)
         return blendARR
 
+# EXPERIMENTAL MANUAL INTERPOLATION METHOD.. TAKES 2-3X AS LONG, IMAGE INCORRECT.. COULD BE FIXED...
+'''
+z = float(leftSourcePoint[0])
+z1 = math.floor(z)
+z2 = math.ceil(z)
+y = float(leftSourcePoint[1])
+y1 = math.floor(y)
+y2 = math.ceil(y)
+if z1 == z2:
+    z1 = max(0, z1 - 1)
+    z2 = min(self.leftImage.shape[1], z2 + 1)
+    # left_fx_y1 = self.leftImage([y1][z1])
+    # left_fx_y2 = self.leftImage([y2][z1])
+left_fx_y1 = ((z2 - float(z)) / (z2 - z1)) * self.leftImage[y1][z1] + ((z - z1) / (z2 - z1)) * self.leftImage[y1][z2]
+left_fx_y2 = ((z2 - z) / (z2 - z1)) * self.leftImage[y2][z1] + ((z - z1) / (z2 - z1)) * self.leftImage[y2][z2]
+
+if y1 == y2:
+    y1 = max(0, y1 - 1)
+    y2 = min(self.leftImage.shape[0], y2 + 1)
+self.leftImage[int(x[1])][int(x[0])] = ((y2 - y) / (y2 - y1)) * left_fx_y1 + ((y - y1) / (y2 - y1)) * left_fx_y2
+
+z = float(rightSourcePoint[0])
+z1 = math.floor(z)
+z2 = math.ceil(z)
+y = float(rightSourcePoint[1])
+y1 = math.floor(y)
+y2 = math.ceil(y)
+if z1 == z2:
+    z1 = max(0, z1 - 1)
+    z2 = min(self.rightImage.shape[1], z2 + 1)
+    # left_fx_y1 = self.leftImage([y1][z1])
+    # left_fx_y2 = self.leftImage([y2][z1])
+right_fx_y1 = ((z2 - float(z)) / (z2 - z1)) * self.rightImage[y1][z1] + ((z - z1) / (z2 - z1)) * self.rightImage[y1][z2]
+right_fx_y2 = ((z2 - z) / (z2 - z1)) * self.rightImage[y2][z1] + ((z - z1) / (z2 - z1)) * self.rightImage[y2][z2]
+
+if y1 == y2:
+    y1 = max(0, y1 - 1)
+    y2 = min(self.rightImage.shape[0], y2 + 1)
+self.rightImage[int(x[1])][int(x[0])] = ((y2 - y) / (y2 - y1)) * right_fx_y1 + ((y - y1) / (y2 - y1)) * right_fx_y2
+'''
+
 
 if __name__ == "__main__":
-    with PyCallGraph(output=GraphvizOutput()):
+    #with PyCallGraph(output=GraphvizOutput()):
         begin = time.time()
         leftPointFilePath = 'C:/Users/xzomb/PycharmProjects/Personal/Morphing/Images_Points/StartGray1.txt'
         rightPointFilePath = 'C:/Users/xzomb/PycharmProjects/Personal/Morphing/Images_Points/EndGray1.txt'

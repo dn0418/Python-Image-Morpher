@@ -1,5 +1,3 @@
-from __future__ import division, print_function
-
 import os
 import sys
 import pickle
@@ -16,7 +14,7 @@ from numpy._build_utils.apple_accelerate import (
     uses_accelerate_framework, get_sgemv_fix
     )
 from numpy.compat import npy_load_module
-from setup_common import *
+from setup_common import *  # noqa: F403
 
 # Set to True to enable relaxed strides checking. This (mostly) means
 # that `strides[dim]` is ignored if `shape[dim] == 1` when setting flags.
@@ -38,7 +36,7 @@ NPY_RELAXED_STRIDES_DEBUG = NPY_RELAXED_STRIDES_DEBUG and NPY_RELAXED_STRIDES_CH
 # Use pickle in all cases, as cPickle is gone in python3 and the difference
 # in time is only in build. -- Charles Harris, 2013-03-30
 
-class CallOnceOnly(object):
+class CallOnceOnly:
     def __init__(self):
         self._check_types = None
         self._check_ieee_macros = None
@@ -394,7 +392,7 @@ def visibility_define(config):
 
 def configuration(parent_package='',top_path=None):
     from numpy.distutils.misc_util import Configuration, dot_join
-    from numpy.distutils.system_info import get_info, dict_append
+    from numpy.distutils.system_info import get_info
 
     config = Configuration('core', parent_package, top_path)
     local_dir = config.local_path
@@ -469,10 +467,6 @@ def configuration(parent_package='',top_path=None):
                 moredefs.append('NPY_DO_NOT_OPTIMIZE_LONGLONG_right_shift')
                 moredefs.append('NPY_DO_NOT_OPTIMIZE_ULONGLONG_right_shift')
 
-            # Py3K check
-            if sys.version_info[0] >= 3:
-                moredefs.append(('NPY_PY3K', 1))
-
             # Generate the config.h file from moredefs
             with open(target, 'w') as target_f:
                 for d in moredefs:
@@ -526,7 +520,7 @@ def configuration(parent_package='',top_path=None):
     def generate_numpyconfig_h(ext, build_dir):
         """Depends on config.h: generate_config_h has to be called before !"""
         # put common include directory in build_dir on search path
-        # allows using code generation in headers headers
+        # allows using code generation in headers
         config.add_include_dirs(join(build_dir, "src", "common"))
         config.add_include_dirs(join(build_dir, "src", "npymath"))
 
@@ -751,6 +745,7 @@ def configuration(parent_package='',top_path=None):
             join('src', 'common', 'ucsnarrow.c'),
             join('src', 'common', 'ufunc_override.c'),
             join('src', 'common', 'numpyos.c'),
+            join('src', 'common', 'npy_cpu_features.c.src'),
             ]
 
     if os.environ.get('NPY_USE_BLAS_ILP64', "0") != "0":
@@ -904,7 +899,6 @@ def configuration(parent_package='',top_path=None):
             join('src', 'umath', 'clip.c.src'),
             join('src', 'umath', 'ufunc_object.c'),
             join('src', 'umath', 'extobj.c'),
-            join('src', 'umath', 'cpuid.c'),
             join('src', 'umath', 'scalarmath.c.src'),
             join('src', 'umath', 'ufunc_type_resolution.c'),
             join('src', 'umath', 'override.c'),
@@ -967,7 +961,7 @@ def configuration(parent_package='',top_path=None):
     config.add_extension('_operand_flag_tests',
                     sources=[join('src', 'umath', '_operand_flag_tests.c.src')])
 
-    config.add_data_dir('tests')
+    config.add_subpackage('tests')
     config.add_data_dir('tests/data')
 
     config.make_svn_version_py()

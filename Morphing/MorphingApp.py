@@ -14,6 +14,7 @@ from shutil import copyfile
 
 import imageio
 import numpy as np
+from PIL import Image
 from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog, QGraphicsScene, QGraphicsView
 from PyQt5 import QtGui, QtCore
 from scipy.spatial.qhull import Delaunay
@@ -75,9 +76,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.endingTextCorePath = ''
         self.startingText = []
         self.endingText = []
-        self.leftUpdate = 0
         self.leftPNG = 0
-        self.rightUpdate = 0
         self.rightPNG = 0
         self.leftOn = 0
         self.rightOn = 0
@@ -105,6 +104,8 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.redVal = 0
         self.greenVal = 0
         self.blueVal = 0
+        self.resizeFlag = False
+        self.changeFlag = False
 
         # Logic
         self.loadStartButton.clicked.connect(self.loadDataLeft)
@@ -123,11 +124,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     # Macro function to save unnecessary repetitions of the same few lines of code.
     # Essentially refreshes the displayed left and right images of the UI.
     def refreshPaint(self):
-        self.leftUpdate = 0
-        self.rightUpdate = 1
-        self.paintEvent(1)
-        self.leftUpdate = 1
-        self.rightUpdate = 0
+        self.changeFlag = True
         self.paintEvent(1)
 
     # Macro function to save unnecessary repetitions of the same few lines of code.
@@ -173,23 +170,11 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         while i < 4:
             if tempLeft[i] not in self.confirmed_left_points and tempLeft[i] not in self.chosen_left_points:
                 counter += 1
-                self.currentWindow = 0
-                self.leftUpdate = 1
-                self.rightUpdate = 0
-                self.added_left_points.append(tempLeft[i])
-                self.update()
-                self.currentWindow = 1
-                self.leftUpdate = 0
-                self.rightUpdate = 1
-                self.added_right_points.append(tempRight[i])
-                self.update()
+                self.confirmed_left_points.append(tempLeft[i])
+                self.confirmed_left_points_history.append(tempLeft[i])
+                self.confirmed_right_points.append(tempRight[i])
+                self.confirmed_right_points_history.append(tempRight[i])
 
-                throwawayLeft = self.added_left_points.pop(len(self.added_left_points) - 1)
-                throwawayRight = self.added_right_points.pop(len(self.added_right_points) - 1)
-                self.confirmed_left_points.append(throwawayLeft)
-                self.confirmed_left_points_history.append(throwawayLeft)
-                self.confirmed_right_points.append(throwawayRight)
-                self.confirmed_right_points_history.append(throwawayRight)
                 with open(self.startingTextCorePath, "a") as startingFile:
                     if not self.startingText:  # if self.startingText == []
                         startingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].y(), ".1f"))))
@@ -202,14 +187,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                         endingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].y(), ".1f"))))
                 self.startingText.append((self.confirmed_left_points[len(self.confirmed_left_points) - 1].x(), self.confirmed_left_points[len(self.confirmed_left_points) - 1].x()))
                 self.endingText.append((self.confirmed_right_points[len(self.confirmed_right_points) - 1].x(), self.confirmed_right_points[len(self.confirmed_right_points) - 1].x()))
-                self.currentWindow = 0
-                self.leftUpdate = 1
-                self.rightUpdate = 0
-                self.paintEvent(1)
-                self.currentWindow = 1
-                self.leftUpdate = 0
-                self.rightUpdate = 1
-                self.paintEvent(1)
+                self.refreshPaint()
             i += 1
 
         if counter:
@@ -254,175 +232,78 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             os.remove(self.endingTextCorePath)
 
         if self.leftOn and self.rightOn:
-            if self.currentWindow == 0:
-                self.enableDeletion = 0
-                self.currentWindow = 1
-                self.persistFlag = 0
-                self.refreshPaint()
-                self.currentWindow = 0
-            elif self.currentWindow == 1:
-                self.currentWindow = 1
-                self.enableDeletion = 0
-                self.persistFlag = 0
-                self.refreshPaint()
-                self.currentWindow = 0
+            self.enableDeletion = 0
+            self.currentWindow = 1
+            self.persistFlag = 0
+            self.refreshPaint()
+            self.currentWindow = 0
+
         self.notificationLine.setText(" Successfully reset points.")
 
     # Function that handles the rendering of points and triangles onto the GUI when manually called.
     # Dynamically handles changes in point and polygon lists to be compatible with resetPoints, autoCorner, etc.
     def paintEvent(self, paint_event):
-        if self.triangleUpdate == 1:
-            temp = QtGui.QPixmap(self.startingImagePath)
-            painter = QtGui.QPainter(temp)
-            if painter.isActive == 0:
-                painter.begin(temp)
-
-            painter.setBrush(QtGui.QColor(self.redVal, self.greenVal, self.blueVal, 255))
+        if self.changeFlag:
+            leftPic = QtGui.QPixmap(self.startingImagePath)
+            rightPic = QtGui.QPixmap(self.endingImagePath)
             pen = QtGui.QPen()
-            pen.setWidth(5)
-            pen.setColor(QtGui.QColor(self.redVal, self.greenVal, self.blueVal, 255))
-            painter.setPen(pen)
-            for x in self.leftPolyList:
-                painter.drawPolygon(x, 3)
+            pen.setWidth(7)
+            leftpainter = QtGui.QPainter(leftPic)
+            rightpainter = QtGui.QPainter(rightPic)
 
-            painter.setBrush(QtGui.QColor(255, 0, 0, 255))
-            pen = QtGui.QPen()
-            pen.setWidth(5)
+            if self.triangleUpdate == 1:
+                pen.setColor(QtGui.QColor(self.redVal, self.greenVal, self.blueVal, 255))
+                leftpainter.setPen(pen)
+                for x in self.leftPolyList:
+                    leftpainter.drawPolygon(x, 3)
+
+                pen.setColor(QtGui.QColor(self.redVal, self.greenVal, self.blueVal, 255))
+                rightpainter.setPen(pen)
+                for x in self.rightPolyList:
+                    rightpainter.drawPolygon(x, 3)
+
+            leftpainter.setBrush(QtGui.QColor(255, 0, 0, 255))
             pen.setColor(QtGui.QColor(255, 0, 0, 255))
-            painter.setPen(pen)
+            leftpainter.setPen(pen)
             for x in self.chosen_left_points:
-                painter.drawEllipse(x, 7, 7)
+                leftpainter.drawEllipse(x, 7, 7)
 
-            painter.setBrush(QtGui.QColor(0, 255, 0, 255))
-            pen = QtGui.QPen()
-            pen.setWidth(5)
+            leftpainter.setBrush(QtGui.QColor(0, 255, 0, 255))
             pen.setColor(QtGui.QColor(0, 255, 0, 255))
-            painter.setPen(pen)
+            leftpainter.setPen(pen)
             for x in self.added_left_points:
-                painter.drawEllipse(x, 7, 7)
+                leftpainter.drawEllipse(x, 7, 7)
 
-            painter.setBrush(QtGui.QColor(0, 0, 255, 255))
-            pen = QtGui.QPen()
-            pen.setWidth(5)
+            leftpainter.setBrush(QtGui.QColor(0, 0, 255, 255))
             pen.setColor(QtGui.QColor(0, 0, 255, 255))
-            painter.setPen(pen)
+            leftpainter.setPen(pen)
             for x in self.confirmed_left_points:
-                painter.drawEllipse(x, 7, 7)
+                leftpainter.drawEllipse(x, 7, 7)
 
-            painter.end()
-            self.startingImage.setEnabled(1)
-            self.startingImage.setPixmap(temp)
-            self.startingImage.setScaledContents(1)
+            self.startingImage.setPixmap(leftPic)
+            leftpainter.end()
 
-
-            tempEND = QtGui.QPixmap(self.endingImagePath)
-            painter = QtGui.QPainter(tempEND)
-            if painter.isActive == 0:
-                painter.begin(tempEND)
-            painter.setBrush(QtGui.QColor(self.redVal, self.greenVal, self.blueVal, 255))
-            pen = QtGui.QPen()
-            pen.setWidth(5)
-            pen.setColor(QtGui.QColor(self.redVal, self.greenVal, self.blueVal, 255))
-            painter.setPen(pen)
-            for x in self.rightPolyList:
-                painter.drawPolygon(x, 3)
-
-            painter.setBrush(QtGui.QColor(255, 0, 0, 255))
-            pen = QtGui.QPen()
-            pen.setWidth(5)
+            rightpainter.setBrush(QtGui.QColor(255, 0, 0, 255))
             pen.setColor(QtGui.QColor(255, 0, 0, 255))
-            painter.setPen(pen)
+            rightpainter.setPen(pen)
             for x in self.chosen_right_points:
-                painter.drawEllipse(x, 7, 7)
+                rightpainter.drawEllipse(x, 7, 7)
 
-            painter.setBrush(QtGui.QColor(0, 255, 0, 255))
-            pen = QtGui.QPen()
-            pen.setWidth(5)
+            rightpainter.setBrush(QtGui.QColor(0, 255, 0, 255))
             pen.setColor(QtGui.QColor(0, 255, 0, 255))
-            painter.setPen(pen)
+            rightpainter.setPen(pen)
             for x in self.added_right_points:
-                painter.drawEllipse(x, 7, 7)
+                rightpainter.drawEllipse(x, 7, 7)
 
-            painter.setBrush(QtGui.QColor(0, 0, 255, 255))
-            pen = QtGui.QPen()
-            pen.setWidth(5)
+            rightpainter.setBrush(QtGui.QColor(0, 0, 255, 255))
             pen.setColor(QtGui.QColor(0, 0, 255, 255))
-            painter.setPen(pen)
+            rightpainter.setPen(pen)
             for x in self.confirmed_right_points:
-                painter.drawEllipse(x, 7, 7)
+                rightpainter.drawEllipse(x, 7, 7)
 
-            painter.end()
-            self.endingImage.setEnabled(1)
-            self.endingImage.setPixmap(tempEND)
-            self.endingImage.setScaledContents(1)
-        else:
-            temp = QtGui.QPixmap(self.startingImagePath)
-            painter = QtGui.QPainter(temp)
-            if painter.isActive == 0:
-                painter.begin(temp)
-
-            painter.setBrush(QtGui.QColor(255, 0, 0, 255))
-            pen = QtGui.QPen()
-            pen.setWidth(5)
-            pen.setColor(QtGui.QColor(255, 0, 0, 255))
-            painter.setPen(pen)
-            for x in self.chosen_left_points:
-                painter.drawEllipse(x, 7, 7)
-
-            painter.setBrush(QtGui.QColor(0, 255, 0, 255))
-            pen = QtGui.QPen()
-            pen.setWidth(5)
-            pen.setColor(QtGui.QColor(0, 255, 0, 255))
-            painter.setPen(pen)
-            for x in self.added_left_points:
-                painter.drawEllipse(x, 7, 7)
-
-            painter.setBrush(QtGui.QColor(0, 0, 255, 255))
-            pen = QtGui.QPen()
-            pen.setWidth(5)
-            pen.setColor(QtGui.QColor(0, 0, 255, 255))
-            painter.setPen(pen)
-            for x in self.confirmed_left_points:
-                painter.drawEllipse(x, 7, 7)
-
-            painter.end()
-            self.startingImage.setEnabled(1)
-            self.startingImage.setPixmap(temp)
-            self.startingImage.setScaledContents(1)
-
-            tempEND = QtGui.QPixmap(self.endingImagePath)
-            painter = QtGui.QPainter(tempEND)
-            if painter.isActive == 0:
-                painter.begin(tempEND)
-
-            painter.setBrush(QtGui.QColor(255, 0, 0, 255))
-            pen = QtGui.QPen()
-            pen.setWidth(5)
-            pen.setColor(QtGui.QColor(255, 0, 0, 255))
-            painter.setPen(pen)
-            for x in self.chosen_right_points:
-                painter.drawEllipse(x, 7, 7)
-
-            painter.setBrush(QtGui.QColor(0, 255, 0, 255))
-            pen = QtGui.QPen()
-            pen.setWidth(5)
-            pen.setColor(QtGui.QColor(0, 255, 0, 255))
-            painter.setPen(pen)
-            for x in self.added_right_points:
-                painter.drawEllipse(x, 7, 7)
-
-            painter.setBrush(QtGui.QColor(0, 0, 255, 255))
-            pen = QtGui.QPen()
-            pen.setWidth(5)
-            pen.setColor(QtGui.QColor(0, 0, 255, 255))
-            painter.setPen(pen)
-            for x in self.confirmed_right_points:
-                painter.drawEllipse(x, 7, 7)
-
-            painter.end()
-            self.endingImage.setEnabled(1)
-            self.endingImage.setPixmap(tempEND)
-            self.endingImage.setScaledContents(1)
+            rightpainter.end()
+            self.endingImage.setPixmap(rightPic)
+            self.changeFlag = False
 
     # Event handler for keystrokes
     # CTRL + Z will either:
@@ -450,7 +331,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                         self.currentWindow = 0
                         self.enableDeletion = 0
                         self.persistFlag = 0
-                        self.paintEvent(1)
+                        self.refreshPaint()
                         self.autoCornerButton.setEnabled(1)
                         undoFlag = 1
                     elif self.confirmed_left_points != [] and self.confirmed_right_points != []:
@@ -548,7 +429,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.currentWindow = 0
                     self.enableDeletion = 0
                     self.persistFlag = 0
-                    self.paintEvent(1)
+                    self.refreshPaint()
                     self.autoCornerButton.setEnabled(1)
                     self.notificationLine.setText(" Successfully deleted recent temporary point.")
 
@@ -562,6 +443,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.rightMinX = self.leftMaxX + 12
         self.rightMaxX = self.rightMinX + 424 + int((self.width() - 878) / 2)
         self.maxY = self.minY + self.height() - 458  # "self.minY + 225 + (self.height() - 590)" or "self.minY + 318 + (self.height() - 776)"
+        self.resizeFlag = True
 
     # Function that handles GUI and file behavior when the mouse is clicked.
     def mousePressEvent(self, cursor_event):
@@ -599,23 +481,17 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                             endingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].y(), ".1f"))))
                     self.startingText.append((self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), self.confirmed_left_points[len(self.confirmed_left_points)-1].x()))
                     self.endingText.append((self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), self.confirmed_right_points[len(self.confirmed_right_points)-1].x()))
-                    self.leftUpdate = 1
-                    self.rightUpdate = 0
                     self.persistFlag = 0
-                    self.paintEvent(1)
-                    self.leftUpdate = 0
-                    self.rightUpdate = 1
-                    self.paintEvent(1)
+                    self.refreshPaint()
+                    self.refreshPaint()
                     self.displayTriangles()
                     self.autoCornerButton.setEnabled(1)
                     self.resetPointsButton.setEnabled(1)
                     self.notificationLine.setText(" Successfully confirmed set of added points.")
                 if self.leftMinX < cursor_event.pos().x() < self.leftMaxX and self.minY < cursor_event.pos().y() < self.maxY:
                     leftCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.leftMinX)*self.leftScalar[0]), int((cursor_event.pos().y()-self.minY)*self.leftScalar[1]))
-                    self.leftUpdate = 1
-                    self.rightUpdate = 0
                     self.added_left_points.append(leftCoord)
-                    self.update()
+                    self.refreshPaint()
                     self.currentWindow = 1
                     self.persistFlag = 0
                     self.enableDeletion = 1
@@ -624,10 +500,8 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             elif self.currentWindow == 1:
                 if self.rightMinX < cursor_event.pos().x() < self.rightMaxX and self.minY < cursor_event.pos().y() < self.maxY:
                     rightCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.rightMinX)*self.rightScalar[0]), int((cursor_event.pos().y()-self.minY)*self.rightScalar[1]))
-                    self.leftUpdate = 0
-                    self.rightUpdate = 1
                     self.added_right_points.append(rightCoord)
-                    self.update()
+                    self.refreshPaint()
                     self.currentWindow = 0
                     self.enableDeletion = 1
                     self.persistFlag = 2
@@ -695,15 +569,15 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                         temp = QtGui.QPolygon((QtCore.QPoint(int(y.vertices[0][0]), int(y.vertices[0][1])), QtCore.QPoint(int(y.vertices[1][0]), int(y.vertices[1][1])), QtCore.QPoint(int(y.vertices[2][0]), int(y.vertices[2][1])), QtCore.QPoint(int(y.vertices[0][0]), int(y.vertices[0][1]))))
                         self.rightPolyList.append(temp)
                     self.triangleUpdate = 1
-                    self.paintEvent(1)
+                    self.refreshPaint()
             else:
                 self.updateTriangleWidget(0)
                 self.triangleUpdate = 0
-                self.paintEvent(1)
+                self.refreshPaint()
         else:
             self.updateTriangleWidget(0)
             self.triangleUpdate = 0
-            self.paintEvent(1)
+            self.refreshPaint()
 
     # Simple function that rounds the desired alpha value to the nearest 0.05 increment.
     def updateAlpha(self):
@@ -713,18 +587,18 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
 
     # Red/Green/Blue slider functions for the triangle widget in order to select custom colors
     def updateRed(self):
-        self.notificationLine.setText(" Red value changed from " + str(self.redVal) + " to " + str(self.triangleRedSlider.value()) + ".")
         self.redVal = self.triangleRedSlider.value()
+        self.notificationLine.setText(" Red value set to " + str(self.redVal) + ".")
         self.refreshPaint()
 
     def updateGreen(self):
-        self.notificationLine.setText(" Green value changed from " + str(self.greenVal) + " to " + str(self.triangleGreenSlider.value()) + ".")
         self.greenVal = self.triangleGreenSlider.value()
+        self.notificationLine.setText(" Green value set to " + str(self.greenVal) + ".")
         self.refreshPaint()
 
     def updateBlue(self):
-        self.notificationLine.setText(" Blue value changed from " + str(self.blueVal) + " to " + str(self.triangleBlueSlider.value()) + ".")
         self.blueVal = self.triangleBlueSlider.value()
+        self.notificationLine.setText(" Blue value set to " + str(self.blueVal) + ".")
         self.refreshPaint()
 
     # Function that handles behavior when the user wishes to blend the two calibrated images.
@@ -793,7 +667,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             pool.close()
             pool.terminate()
             pool.join()
-            self.notificationLine.setText(" Morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+            self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
 
             xCount = 0
             blendARR = []
@@ -855,7 +729,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             pool.close()
             pool.terminate()
             pool.join()
-            self.notificationLine.setText(" Morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+            self.notificationLine.setText(" RGBA morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
 
             xCount = 0
             blendARR = []
@@ -888,11 +762,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.displayTriangles()
         self.refreshPaint()
 
-        self.leftUpdate = 1
-        self.rightUpdate = 0
         if self.leftOn == 0:
             self.leftOn = 1
-        self.startingImage.setPixmap(QtGui.QPixmap(filePath))
+        self.leftPixmap = QtGui.QPixmap(filePath)
+        self.startingImage.setPixmap(self.leftPixmap)
         self.startingImage.setScaledContents(1)
         self.leftSize = (imageio.imread(filePath).shape[1], imageio.imread(filePath).shape[0])
         self.leftScalar = (self.leftSize[0] / (424 + int((self.width() - 878) / 2)), self.leftSize[1] / (self.height() - 458))
@@ -975,11 +848,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.displayTriangles()
         self.refreshPaint()
 
-        self.leftUpdate = 0
-        self.rightUpdate = 1
         if self.rightOn == 0:
             self.rightOn = 1
-        self.endingImage.setPixmap(QtGui.QPixmap(filePath))
+        self.rightPixmap = QtGui.QPixmap(filePath)
+        self.endingImage.setPixmap(self.rightPixmap)
         self.endingImage.setScaledContents(1)
         self.rightSize = (imageio.imread(filePath).shape[1], imageio.imread(filePath).shape[0])
         self.rightScalar = (self.rightSize[0] / (424 + int((self.width() - 878) / 2)), self.rightSize[1] / (self.height() - 458))
@@ -1024,13 +896,11 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 for x in rightFile:
                     self.endingText.append(x.split())
                     self.chosen_right_points.append(QtCore.QPoint(int(float(x.split()[0])), int(float(x.split()[1]))))
-                    self.update()
         elif os.path.isfile(self.endingTextPath):
             with open(self.endingTextPath, "r") as rightFile:
                 for x in rightFile:
                     self.endingText.append(x.split())
                     self.chosen_right_points.append(QtCore.QPoint(int(float(x.split()[0])), int(float(x.split()[1]))))
-                    self.update()
 
         if os.path.isfile(self.endingTextPath):
             os.remove(self.endingTextPath)

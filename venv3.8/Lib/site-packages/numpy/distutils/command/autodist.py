@@ -1,8 +1,6 @@
 """This module implements additional tests ala autoconf which can be useful.
 
 """
-from __future__ import division, absolute_import, print_function
-
 import textwrap
 
 # We put them here since they could be easily reused outside numpy.distutils
@@ -71,7 +69,10 @@ def check_gcc_function_attribute(cmd, attribute, name):
         #pragma GCC diagnostic error "-Wattributes"
         #pragma clang diagnostic error "-Wattributes"
 
-        int %s %s(void*);
+        int %s %s(void* unused)
+        {
+            return 0;
+        }
 
         int
         main()
