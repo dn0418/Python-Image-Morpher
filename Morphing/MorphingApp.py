@@ -18,6 +18,7 @@ from PIL import Image
 from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog, QGraphicsScene, QGraphicsView
 from PyQt5 import QtGui, QtCore
 from scipy.spatial.qhull import Delaunay
+import copy
 
 from Morphing import *
 from Morphing import Triangle, loadTriangles, Morpher
@@ -101,11 +102,14 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.minY = 38
         self.maxY = 356
         self.transparencySetting = 0  # Flag for user preference on blending alpha layer of .PNG images
+        self.blendBoxSetting = 0      # Flag for user preference on full blending the two images
+        self.blendList = []           # List used to store the 21 frames of 0.05 alpha increments for full blending
         self.redVal = 0
         self.greenVal = 0
         self.blueVal = 0
         self.resizeFlag = False
         self.changeFlag = False
+        self.fullBlendComplete = False
 
         # Logic
         self.loadStartButton.clicked.connect(self.loadDataLeft)
@@ -114,6 +118,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.triangleBox.stateChanged.connect(self.displayTriangles)
         self.transparencyBox.stateChanged.connect(self.transparencyUpdate)
         self.blendButton.clicked.connect(self.blendImages)
+        self.blendBox.stateChanged.connect(self.blendBoxUpdate)
         self.alphaSlider.valueChanged.connect(self.updateAlpha)
         self.triangleRedSlider.valueChanged.connect(self.updateRed)
         self.triangleGreenSlider.valueChanged.connect(self.updateGreen)
@@ -263,20 +268,14 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     rightpainter.drawPolygon(x, 3)
 
             leftpainter.setBrush(QtGui.QColor(255, 0, 0, 255))
-            pen.setColor(QtGui.QColor(255, 0, 0, 255))
-            leftpainter.setPen(pen)
             for x in self.chosen_left_points:
                 leftpainter.drawEllipse(x, 7, 7)
 
             leftpainter.setBrush(QtGui.QColor(0, 255, 0, 255))
-            pen.setColor(QtGui.QColor(0, 255, 0, 255))
-            leftpainter.setPen(pen)
             for x in self.added_left_points:
                 leftpainter.drawEllipse(x, 7, 7)
 
             leftpainter.setBrush(QtGui.QColor(0, 0, 255, 255))
-            pen.setColor(QtGui.QColor(0, 0, 255, 255))
-            leftpainter.setPen(pen)
             for x in self.confirmed_left_points:
                 leftpainter.drawEllipse(x, 7, 7)
 
@@ -284,20 +283,14 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             leftpainter.end()
 
             rightpainter.setBrush(QtGui.QColor(255, 0, 0, 255))
-            pen.setColor(QtGui.QColor(255, 0, 0, 255))
-            rightpainter.setPen(pen)
             for x in self.chosen_right_points:
                 rightpainter.drawEllipse(x, 7, 7)
 
             rightpainter.setBrush(QtGui.QColor(0, 255, 0, 255))
-            pen.setColor(QtGui.QColor(0, 255, 0, 255))
-            rightpainter.setPen(pen)
             for x in self.added_right_points:
                 rightpainter.drawEllipse(x, 7, 7)
 
             rightpainter.setBrush(QtGui.QColor(0, 0, 255, 255))
-            pen.setColor(QtGui.QColor(0, 0, 255, 255))
-            rightpainter.setPen(pen)
             for x in self.confirmed_right_points:
                 rightpainter.drawEllipse(x, 7, 7)
 
@@ -483,7 +476,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.endingText.append((self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), self.confirmed_right_points[len(self.confirmed_right_points)-1].x()))
                     self.persistFlag = 0
                     self.refreshPaint()
-                    self.refreshPaint()
                     self.displayTriangles()
                     self.autoCornerButton.setEnabled(1)
                     self.resetPointsButton.setEnabled(1)
@@ -524,10 +516,20 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         else:
             self.notificationLine.setText(" Successfully disabled transparency layer.")
 
+    # Another simple function for updating user preference regarding 'full blending'
+    # Full blending is defined as morphing every 0.05 alpha increment of the two images.
+    # The alpha slider than becomes an interactive display, showing each blend in realtime.
+    # (Naturally, this is disabled by default, as full blending takes 20 times as long to run)
+    def blendBoxUpdate(self):
+        self.blendBoxSetting = int(self.blendBox.isChecked())
+        if self.blendBox.isChecked():
+            self.notificationLine.setText(" Successfully enabled full blending.")
+        else:
+            self.notificationLine.setText(" Successfully disabled full blending.")
+
     # Function that dynamically updates the list of triangles for the image pair provided, when manually invoked.
     # When a process wants to see triangles update properly, THIS is what needs to be called (not self.triangleUpdate).
     def displayTriangles(self):
-        # if self.triangleBox.checkState():
         if self.triangleBox.isEnabled():
             if self.triangleBox.isChecked() or self.triangleUpdatePref:
                 self.triangleBox.checkState = 2
@@ -584,6 +586,17 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         value = format(round((self.alphaSlider.value() / 20) / 0.05) * 0.05, ".2f")
         self.notificationLine.setText(" Alpha value changed from " + self.alphaValue.text() + " to " + str(value) + ".")
         self.alphaValue.setText(str(value))
+        if self.blendBoxSetting and self.fullBlendComplete:
+            temp = self.blendList[int(float(self.alphaValue.text()) / 0.05)]
+            if len(temp.shape) == 2:
+                blendImage = QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)
+            elif temp.shape[2] == 3:
+                blendImage = QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGB888)
+            elif temp.shape[2] == 4:
+                blendImage = QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGBA8888)
+            else:
+                print("Generic catching error: Something went wrong when loading the image.")
+            self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(blendImage))
 
     # Red/Green/Blue slider functions for the triangle widget in order to select custom colors
     def updateRed(self):
@@ -622,10 +635,22 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         if len(left.shape) < 3 and len(right.shape) < 3:  # if grayscale
             self.notificationLine.setText(" Beginning grayscale morph.")
             grayScale = Morpher(leftARR, triangleTuple[0], rightARR, triangleTuple[1])
+            backupGrayScale = copy.deepcopy(grayScale)
             start_time = time.time()
-            blendARR = grayScale.getImageAtAlpha(float(self.alphaValue.text()), 0)
+            if self.blendBoxSetting:
+                self.blendList = []
+                x = 0
+                while x < 21:  # Every alpha frame: 0.00, 0.05, 0.10 ... 0.90, 0.95, 1.00
+                    self.blendList.append(grayScale.getImageAtAlpha(x * 0.05, 0))
+                    grayScale = copy.deepcopy(backupGrayScale)
+                    x += 1
+                self.fullBlendComplete = True
+                temp = self.blendList[int(float(self.alphaValue.text()) / 0.05)]
+                blendImage = QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)
+            else:
+                blendARR = grayScale.getImageAtAlpha(float(self.alphaValue.text()), 0)
+                blendImage = QtGui.QImage(blendARR.data, blendARR.shape[1], blendARR.shape[0], QtGui.QImage.Format_Grayscale8)
             self.notificationLine.setText(" Morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
-            blendImage = QtGui.QImage(blendARR.data, blendARR.shape[1], blendARR.shape[0], QtGui.QImage.Format_Grayscale8)
         elif not self.leftPNG or not self.rightPNG or not self.transparencySetting or (len(left.shape) == 3 and len(right.shape) == 3):  # if color, no alpha (.JPG)
             self.notificationLine.setText(" Beginning RGB (.jpg) morph.")
             leftColorValueR = []
@@ -655,30 +680,65 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             colorScaleR = Morpher(leftColorValueR, triangleTuple[0], rightColorValueR, triangleTuple[1])
             colorScaleG = Morpher(leftColorValueG, triangleTuple[0], rightColorValueG, triangleTuple[1])
             colorScaleB = Morpher(leftColorValueB, triangleTuple[0], rightColorValueB, triangleTuple[1])
+            backupColorScaleR = copy.deepcopy(colorScaleR)
+            backupColorScaleG = copy.deepcopy(colorScaleG)
+            backupColorScaleB = copy.deepcopy(colorScaleB)
 
             start_time = time.time()
-            pool = multiprocessing.Pool(4)
-            results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
-                       pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
-                       pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()), 1))]
-            blendR = results[0].get()
-            blendG = results[1].get()
-            blendB = results[2].get()
-            pool.close()
-            pool.terminate()
-            pool.join()
-            self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+            if self.blendBoxSetting:
+                self.blendList = []
+                counter = 0
+                while counter < 21:  # Every alpha frame: 0.00, 0.05, 0.10 ... 0.90, 0.95, 1.00
+                    pool = multiprocessing.Pool(4)
+                    results = [pool.apply_async(colorScaleR.getImageAtAlpha, (counter * 0.05, 1)),
+                               pool.apply_async(colorScaleG.getImageAtAlpha, (counter * 0.05, 1)),
+                               pool.apply_async(colorScaleB.getImageAtAlpha, (counter * 0.05, 1))]
+                    blendR = results[0].get()
+                    blendG = results[1].get()
+                    blendB = results[2].get()
+                    pool.close()
+                    pool.terminate()
+                    pool.join()
+                    xCount = 0
+                    blendARR = []
+                    for x in leftARR:
+                        yCount = 0
+                        for y in x:
+                            blendARR.append([blendR[xCount][yCount], blendG[xCount][yCount], blendB[xCount][yCount]])
+                            yCount = yCount + 1
+                        xCount = xCount + 1
+                    self.blendList.append(np.array(blendARR, np.uint8).reshape(self.leftSize[1], self.leftSize[0], 3))
+                    colorScaleR = copy.deepcopy(backupColorScaleR)
+                    colorScaleG = copy.deepcopy(backupColorScaleG)
+                    colorScaleB = copy.deepcopy(backupColorScaleB)
+                    counter += 1
+                self.fullBlendComplete = True
+                temp = self.blendList[int(float(self.alphaValue.text()) / 0.05)]
+                blendImage = QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGB888)
+                self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+            else:
+                pool = multiprocessing.Pool(4)
+                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
+                           pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
+                           pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()), 1))]
+                blendR = results[0].get()
+                blendG = results[1].get()
+                blendB = results[2].get()
+                pool.close()
+                pool.terminate()
+                pool.join()
+                self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
 
-            xCount = 0
-            blendARR = []
-            for x in leftARR:
-                yCount = 0
-                for y in x:
-                    blendARR.append([blendR[xCount][yCount], blendG[xCount][yCount], blendB[xCount][yCount]])
-                    yCount = yCount + 1
-                xCount = xCount + 1
-            blendARR = np.array(blendARR, np.uint8).reshape(self.leftSize[1], self.leftSize[0], 3)
-            blendImage = QtGui.QImage(blendARR.data, blendARR.shape[1], blendARR.shape[0], QtGui.QImage.Format_RGB888)
+                xCount = 0
+                blendARR = []
+                for x in leftARR:
+                    yCount = 0
+                    for y in x:
+                        blendARR.append([blendR[xCount][yCount], blendG[xCount][yCount], blendB[xCount][yCount]])
+                        yCount = yCount + 1
+                    xCount = xCount + 1
+                blendARR = np.array(blendARR, np.uint8).reshape(self.leftSize[1], self.leftSize[0], 3)
+                blendImage = QtGui.QImage(blendARR.data, blendARR.shape[1], blendARR.shape[0], QtGui.QImage.Format_RGB888)
         elif self.leftPNG and self.rightPNG and self.transparencySetting and len(left.shape) == 4 and len(right.shape) == 4:   # if color, alpha (.PNG)
             self.notificationLine.setText(" Beginning RGBA (.png) morph.")
             leftColorValueR = []
@@ -715,32 +775,72 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             colorScaleG = Morpher(leftColorValueG, triangleTuple[0], rightColorValueG, triangleTuple[1])
             colorScaleB = Morpher(leftColorValueB, triangleTuple[0], rightColorValueB, triangleTuple[1])
             colorScaleA = Morpher(leftColorValueA, triangleTuple[0], rightColorValueA, triangleTuple[1])
+            backupColorScaleR = copy.deepcopy(colorScaleR)
+            backupColorScaleG = copy.deepcopy(colorScaleG)
+            backupColorScaleB = copy.deepcopy(colorScaleB)
+            backupColorScaleA = copy.deepcopy(colorScaleA)
 
             start_time = time.time()
-            pool = multiprocessing.Pool(4)
-            results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
-                       pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
-                       pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
-                       pool.apply_async(colorScaleA.getImageAtAlpha, (float(self.alphaValue.text()), 1))]
-            blendR = results[0].get()
-            blendG = results[1].get()
-            blendB = results[2].get()
-            blendA = results[3].get()
-            pool.close()
-            pool.terminate()
-            pool.join()
-            self.notificationLine.setText(" RGBA morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+            if self.blendBoxSetting:
+                self.blendList = []
+                counter = 0
+                while counter < 21:  # Every alpha frame: 0.00, 0.05, 0.10 ... 0.90, 0.95, 1.00
+                    pool = multiprocessing.Pool(4)
+                    results = [pool.apply_async(colorScaleR.getImageAtAlpha, (counter * 0.05, 1)),
+                               pool.apply_async(colorScaleG.getImageAtAlpha, (counter * 0.05, 1)),
+                               pool.apply_async(colorScaleB.getImageAtAlpha, (counter * 0.05, 1)),
+                               pool.apply_async(colorScaleA.getImageAtAlpha, (counter * 0.05, 1))]
+                    blendR = results[0].get()
+                    blendG = results[1].get()
+                    blendB = results[2].get()
+                    blendA = results[3].get()
+                    pool.close()
+                    pool.terminate()
+                    pool.join()
 
-            xCount = 0
-            blendARR = []
-            for x in leftARR:
-                yCount = 0
-                for y in x:
-                    blendARR.append([blendR[xCount][yCount], blendG[xCount][yCount], blendB[xCount][yCount], blendA[xCount][yCount]])
-                    yCount = yCount + 1
-                xCount = xCount + 1
-            blendARR = np.array(blendARR, np.uint8).reshape(self.leftSize[1], self.leftSize[0], 4)
-            blendImage = QtGui.QImage(blendARR.data, blendARR.shape[1], blendARR.shape[0], QtGui.QImage.Format_RGBA8888)
+                    xCount = 0
+                    blendARR = []
+                    for x in leftARR:
+                        yCount = 0
+                        for y in x:
+                            blendARR.append([blendR[xCount][yCount], blendG[xCount][yCount], blendB[xCount][yCount], blendA[xCount][yCount]])
+                            yCount = yCount + 1
+                        xCount = xCount + 1
+                    self.blendList.append(np.array(blendARR, np.uint8).reshape(self.leftSize[1], self.leftSize[0], 4))
+                    colorScaleR = copy.deepcopy(backupColorScaleR)
+                    colorScaleG = copy.deepcopy(backupColorScaleG)
+                    colorScaleB = copy.deepcopy(backupColorScaleB)
+                    colorScaleA = copy.deepcopy(backupColorScaleA)
+                    counter += 1
+                self.fullBlendComplete = True
+                temp = self.blendList[int(float(self.alphaValue.text()) / 0.05)]
+                blendImage = QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGBA8888)
+                self.notificationLine.setText(" RGBA morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+            else:
+                pool = multiprocessing.Pool(4)
+                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
+                           pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
+                           pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
+                           pool.apply_async(colorScaleA.getImageAtAlpha, (float(self.alphaValue.text()), 1))]
+                blendR = results[0].get()
+                blendG = results[1].get()
+                blendB = results[2].get()
+                blendA = results[3].get()
+                pool.close()
+                pool.terminate()
+                pool.join()
+                self.notificationLine.setText(" RGBA morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+
+                xCount = 0
+                blendARR = []
+                for x in leftARR:
+                    yCount = 0
+                    for y in x:
+                        blendARR.append([blendR[xCount][yCount], blendG[xCount][yCount], blendB[xCount][yCount], blendA[xCount][yCount]])
+                        yCount = yCount + 1
+                    xCount = xCount + 1
+                blendARR = np.array(blendARR, np.uint8).reshape(self.leftSize[1], self.leftSize[0], 4)
+                blendImage = QtGui.QImage(blendARR.data, blendARR.shape[1], blendARR.shape[0], QtGui.QImage.Format_RGBA8888)
         else:
             self.notificationLine.setText(" Generic Catching Error: Check image file types..")
         self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(blendImage))
@@ -757,6 +857,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.triangleUpdatePref = 1
         else:
             self.triangleUpdatePref = 0
+        self.fullBlendComplete = False
         self.triangleBox.setEnabled(0)
         self.triangleBox.setChecked(0)
         self.displayTriangles()
@@ -843,6 +944,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.triangleUpdatePref = 1
         else:
             self.triangleUpdatePref = 0
+        self.fullBlendComplete = False
         self.triangleBox.setEnabled(0)
         self.triangleBox.setChecked(0)
         self.displayTriangles()
