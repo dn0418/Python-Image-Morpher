@@ -20,15 +20,15 @@ Now that I'm no longer in this course and the source code is mine to freely modi
 
 
 <p align="center">
-  <img width="632" height="580" src="https://i.imgur.com/8rBJRk6.jpg"><br>
-  <i>Redesigned & Resizable GUI (WIP v2)</i>
+  <img width="632" height="580" src="https://i.imgur.com/Kiej02X.jpg"><br>
+  <i>Redesigned & Resizable GUI (WIP v3)</i>
 </p>
 
 In the future, I plan to continue improving on this neat little program. Currently, I have ideas regarding:
 
 - [X] Color Picker Widget (User may specify color used for ~~added/confirmed/chosen points and~~ triangles)
 - [ ] Redo / CTRL + Y (User may redo an action that was previously undone or deleted)
-- [X] Full Blend (User may toggle a flag that tells the program to render each 0.05 alpha increment blend and the slider would instead display each frame - this heavily relies on the next point)
+- [X] Full Blend (User may toggle a flag that tells the program to render each ~~0.05~~ specified alpha increment blend and the alpha slider instead displays each frame - this heavily relies on the next point)
 - [ ] Improved Performance (Currently, interpolation is the biggest bottleneck, second to the required matrix math)
 
 If you like what you see, feel free to contact me on [LinkedIn](https://www.linkedin.com/in/davidmilesdowd/).

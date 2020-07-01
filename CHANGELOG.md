@@ -1,3 +1,80 @@
+# Version 2.5 - <i>Endless Polishing</i> (2020-XX-XX)
+## Known Bugs
+- Instances where points added through the GUI are vertically off center
+    - Especially apparent after the first blend has been executed (which reshapes the GUI by a bit)
+##Added
+- <b>Full Blending Input</b>
+    - When the full blending box is checked, a new text box is enabled for the user to specify their desired alpha
+    increment to be used for generating and displaying frames.
+    - The default full blending value is still 0.05 but can now be set as low as 0.001 or as high as 0.25
+        - A Qt mask is used to restrict some (but not all) letter and symbol input - format is [0-1].[0-9][0-9]{0,1,2}
+        - The program handles all other invalid inputs (1.0, 0.000, etc)
+    - The alpha slider and it's tick marks will now dynamically change in response to changes to the full blend value
+        - The program will intelligently modify the user's given value to one that best fits the slider
+            - For example, if given 0.14, the program will automatically change it to 0.142 for the user's convenience
+- <b>Reset Alpha Slider</b>
+    - Since the user is now able to cause changes to the alpha slider's parameters, there is now a reset button for it
+        - Resetting the alpha slider will also reset the full blend value to default as well
+##Changes
+- Revised and created additional tooltips in MorphingGUI.ui and MorphingGUI.py
+- Revised when self.fullBlendComplete is set to False in order to safely accommodate feature update
+    - For example, after a full blend, changing the input value disables self.fullBlendComplete
+- Revised all five array declarations in Morphing.py's <b>getImageAtAlpha()</b> so that they no longer require reshaping afterwards 
+- Rewrote x & y min/max statements in Morphing.py's <b>getPoints()</b> to be more NumPythonic
+    - "min(self.vertices[0][0], self.vertices[1][0], self.vertices[2][0]))" → "self.vertices[:, 0].min()"
+- Rewrote a conditional in <b>loadDataLeft()</b> and <b>loadDataRight()</b> to check whether the two images are on instead
+of whether the two images have scaled contents
+    - Comment: <i>This effectively doesn't change behavior at all, but it makes more sense to be written this way. If
+    the two images have scaled contents, they're both on anyways.. so just check for that.</i>
+- Moved all "self.triangleBox.setEnabled(0)" lines to come after "self.triangleBox.setChecked(0)" instead of the other way around
+- Updated the GUI's MainWindow icon from Qt's default icon to "Morphing.ico"
+    - Comment: <i>This is currently locked at an awkward size of <b>24</b> x <b>24</b>... If that can't be changed, the
+    icon will be redesigned. Still attempting to set an application icon as well.</i>
+- Optimized: Removed 3 SLOC each from MorphingApp.py's <b>keyPressEvent()</b> (2x), <b>resetPoints()</b>, <b>loadDataLeft()</b>, and <b>loadDataRight()</b>
+    - "if tri.isChecked(): triPref = 1 else: triPref = 0" → "triPref = int(tri.isChecked())"
+- Optimized: Removed 24 SLOC (26% reduction) from MorphingApp.py's MainWindow constructor. All GUI initializations have 
+been shifted from MorphingApp.py to MorphingGUI.ui & MorphingGUI.py.
+    - Comment: <i>These were pretty much just a waste of space - some of the lines accomplished nothing at all. 
+    Other times, MorphingGUI.ui and MorphingGUI.py were enabling elements just for the initializer to immediately 
+    disable them afterwards.</i>
+- Optimized: Removed 7 SLOC (32% reduction) from MorphingApp.py's <b>updateTriangleWidget()</b>
+    - "if val: x.setEnabled(1) else: x.setEnabled(0)" → "x.setEnabled(val)"
+- Updated README.md
+## Fixes
+- Fixed an issue where the right image's triangle vertices were being loaded from type List instead of type Array
+- Fixed an issue where tooltips could appear over blank space, as some GUI elements were "wider" than they actually were
+- Fixed a bug where loading new images with Show Triangles checked would break both the checkbox as well as the triangle
+painter
+    - Comment: <i>This was a particularly nasty bug. It ended up mainly being caused by a state change method that triggered
+    whenever the triangle box was modified. This method was setting flags at the same time as the calling block, which
+    led to really weird and unpredictable behavior that was difficult to debug.</i>
+- Removed several package imports that were no longer being utilized by the program
+- Removed an event signal where invoking <b>loadDataLeft()</b> would simultaneously invoke <b>displayTriangles()</b>
+    - Comment: <i>This may have also contributed to the aforementioned bug, above.</i>
+- Fixed a bug where the user's triangle preference wasn't being set to 0 when the box was unchecked
+- Fixed a bug where <b>autoCorner()</b> had to place corner points that were off by a pixel
+    - (1, 1), (1, y - 1), (x - 1, 1), (x - 1, y - 1) → (0, 0), (0, y), (x, 0), (x, y)
+- Replaced a global (and hard-coded) DataPath variable that wasn't being used with a dynamic root directory variable. Hard coded
+text file paths in <b>loadDataLeft()</b> and <b>loadDataRight()</b> now instead build off of ROOT_DIR
+    - Comment: <i>Now this program can start having release candidates! Once module import woes get sorted out, anyways.</i>
+- Removed an unnecessary call to <b>refreshPaint()</b> in <b>loadDataLeft()</b> and <b>loadDataRight()</b>
+- Removed a conditional in both <b>loadDataLeft()</b> and <b>loadDataRight()</b> that wasn't necessary
+    - "if self.leftOn == 0: self.leftOn = 1" → "self.leftOn = 1"
+- Removed a chained conditional in both <b>loadDataLeft()</b> and <b>loadDataRight()</b> that wasn't being used
+    - "if x is None; else if x is PNG; else" → "if x is None; else"
+        - Comment: <i>In this pseudo-example, x is the return of a regex search for ".png", so it will either be None or it won't.
+        Both cases are indicative of what behavior should follow, so there is no need for a second conditional.</i>
+- Removed two nested conditionals in <b>loadDataLeft()</b> and <b>loadDataRight()</b> that could have been simplified
+into the parent
+    - "if x == y: if x >= 3: if y >= 3: ..." → "if x == y >= 3"
+- Removed a conditional in <b>resetPoints()</b> that wasn't necessary
+    - Comment: <i>Checking for whether the two images are on is redundant in this case as the two image must be on for
+    <b>resetPoints()</b> to be called anyways.</i>
+- The self.fullBlendComplete flag now gets set to 0 after a normal blend is executed
+    - Comment: <i>This was a harmless oversight at the time of full blending's creation but became a dangerous bug 
+    with the addition of user input.</i>
+- Other general code cleanup
+
 # Version 2.4 - (2020-06-27)
 ## Added
 - <b>Full Blending</b>
