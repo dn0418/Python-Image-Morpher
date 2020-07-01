@@ -1,8 +1,8 @@
-# Version 2.5 - <i>Endless Polishing</i> (2020-XX-XX)
+# Version 2.5 - <i>Endless Polishing</i> (2020-07-01)
 ## Known Bugs
 - Instances where points added through the GUI are vertically off center
     - Especially apparent after the first blend has been executed (which reshapes the GUI by a bit)
-##Added
+## Added
 - <b>Full Blending Input</b>
     - When the full blending box is checked, a new text box is enabled for the user to specify their desired alpha
     increment to be used for generating and displaying frames.
@@ -15,7 +15,7 @@
 - <b>Reset Alpha Slider</b>
     - Since the user is now able to cause changes to the alpha slider's parameters, there is now a reset button for it
         - Resetting the alpha slider will also reset the full blend value to default as well
-##Changes
+## Changes
 - Revised and created additional tooltips in MorphingGUI.ui and MorphingGUI.py
 - Revised when self.fullBlendComplete is set to False in order to safely accommodate feature update
     - For example, after a full blend, changing the input value disables self.fullBlendComplete
