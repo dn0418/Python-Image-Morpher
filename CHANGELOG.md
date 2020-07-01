@@ -5,7 +5,7 @@
 ## Added
 - <b>Full Blending Input</b>
     - When the full blending box is checked, a new text box is enabled for the user to specify their desired alpha
-    increment to be used for generating and displaying frames.
+    increment to be used for generating and displaying frames
     - The default full blending value is still 0.05 but can now be set as low as 0.001 or as high as 0.25
         - A Qt mask is used to restrict some (but not all) letter and symbol input - format is [0-1].[0-9][0-9]{0,1,2}
         - The program handles all other invalid inputs (1.0, 0.000, etc)
@@ -48,9 +48,9 @@ painter
     - Comment: <i>This was a particularly nasty bug. It ended up mainly being caused by a state change method that triggered
     whenever the triangle box was modified. This method was setting flags at the same time as the calling block, which
     led to really weird and unpredictable behavior that was difficult to debug.</i>
-- Removed several package imports that were no longer being utilized by the program
 - Removed an event signal where invoking <b>loadDataLeft()</b> would simultaneously invoke <b>displayTriangles()</b>
     - Comment: <i>This may have also contributed to the aforementioned bug, above.</i>
+- Removed several imported modules that were no longer being utilized by the program
 - Fixed a bug where the user's triangle preference wasn't being set to 0 when the box was unchecked
 - Fixed a bug where <b>autoCorner()</b> had to place corner points that were off by a pixel
     - (1, 1), (1, y - 1), (x - 1, 1), (x - 1, y - 1) → (0, 0), (0, y), (x, 0), (x, y)
@@ -68,11 +68,11 @@ text file paths in <b>loadDataLeft()</b> and <b>loadDataRight()</b> now instead 
 into the parent
     - "if x == y: if x >= 3: if y >= 3: ..." → "if x == y >= 3"
 - Removed a conditional in <b>resetPoints()</b> that wasn't necessary
-    - Comment: <i>Checking for whether the two images are on is redundant in this case as the two image must be on for
+    - Comment: <i>Checking for whether the two images are on is redundant in this case as the two images must be on for
     <b>resetPoints()</b> to be called anyways.</i>
 - The self.fullBlendComplete flag now gets set to 0 after a normal blend is executed
-    - Comment: <i>This was a harmless oversight at the time of full blending's creation but became a dangerous bug 
-    with the addition of user input.</i>
+    - Comment: <i>This was a harmless oversight at the time of full blending's creation but became a potentially 
+    dangerous bug with the addition of user input.</i>
 - Other general code cleanup
 
 # Version 2.4 - (2020-06-27)
