@@ -3,7 +3,7 @@
 - Multithreading / multiprocessing implementation for <b>getImageAtAlpha()</b> in order to improve performance
     - Comment: <i>Multiprocessing is applicable to the matrix math while multithreading is applicable to sharing the
     same image variable for assigning interpolated values.</i>
-# Changes
+## Changes
 - <b>The morphing algorithm has received a significant increase in performance</b>
     - Matrix multiplication is now conducted across each triangle's entire set of points at once (as opposed to 
     multiplying each individual point at a time)
