@@ -1,3 +1,15 @@
+# Version 2.5.1 - (2020-07-07)
+## Unreleased
+- Multithreading / multiprocessing implementation for <b>getImageAtAlpha()</b> in order to improve performance
+    - Comment: <i>Multiprocessing is applicable to the matrix math while multithreading is applicable to sharing the
+    same image variable for assigning interpolated values.</i>
+# Changes
+- <b>The morphing algorithm has received a significant increase in performance</b>
+    - Matrix multiplication is now conducted across each triangle's entire set of points at once (as opposed to 
+    multiplying each individual point at a time)
+    - Roughly translates to a 20% speedup
+- Moved image interpolation from <b>getImageAtAlpha()</b> to the new <b>interpolatePoints()</b>
+
 # Version 2.5 - <i>Endless Polishing</i> (2020-07-01)
 ## Known Bugs
 - Instances where points added through the GUI are vertically off center

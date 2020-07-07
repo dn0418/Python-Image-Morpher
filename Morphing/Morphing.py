@@ -14,10 +14,17 @@ from matplotlib.path import Path
 import numpy as np
 from PIL import Image
 import itertools
+import concurrent.futures
+import multiprocessing
+import threading
+
+from profilehooks import profile
+from pycallgraph import PyCallGraph
+from pycallgraph.output import GraphvizOutput
 
 # Module  level  Variables
 #######################################################
-#DataPath = os.path.expanduser('/Users/xzomb/PycharmProjects/Personal/')
+# DataPath = os.path.expanduser('/Users/xzomb/PycharmProjects/Personal/')
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -91,6 +98,11 @@ class Triangle:
         rightArray = (trueArray[1] + minY).reshape(np.shape(trueArray[1])[0], 1)
         coordArray = np.hstack((leftArray, rightArray))
 
+        # TODO: New! Crude and quickly thrown together. Reminder to clean this function up later.
+        coordArray = np.transpose(coordArray)
+        temp = np.ones(coordArray.shape[1])
+        coordArray = np.vstack((coordArray, temp))
+
         return coordArray
 
 
@@ -118,86 +130,73 @@ class Morpher:
         self.leftTriangles = leftTriangles  # Not of type np.uint8
         self.rightImage = rightImage
         self.rightTriangles = rightTriangles  # Not of type np.uint8
+        self.leftInterpolation = RectBivariateSpline(np.arange(0, self.leftImage.shape[0], 1), np.arange(0, self.leftImage.shape[1], 1), self.leftImage)
+        self.rightInterpolation = RectBivariateSpline(np.arange(0, self.leftImage.shape[0], 1), np.arange(0, self.leftImage.shape[1], 1), self.rightImage)
+        self.lock = threading.Lock()
 
+    #@profile
     def getImageAtAlpha(self, alpha, mode):
-        xRange = np.arange(0, self.leftImage.shape[1], 1)
-        yRange = np.arange(0, self.leftImage.shape[0], 1)
-        leftInterpolation = RectBivariateSpline(yRange, xRange, self.leftImage)
-        rightInterpolation = RectBivariateSpline(yRange, xRange, self.rightImage)
-        # newTargetTriangleList = [Triangle((leftTriangle.vertices + (rightTriangle.vertices - leftTriangle.vertices) * alpha)) for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles)]
+        '''
         for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles):
-            targetTriangle = Triangle(leftTriangle.vertices + (rightTriangle.vertices - leftTriangle.vertices) * alpha)
-            targetVertices = targetTriangle.vertices.reshape(6, 1)
-            tempLeftMatrix = np.array([[leftTriangle.vertices[0][0], leftTriangle.vertices[0][1], 1, 0, 0, 0],
-                                       [0, 0, 0, leftTriangle.vertices[0][0], leftTriangle.vertices[0][1], 1],
-                                       [leftTriangle.vertices[1][0], leftTriangle.vertices[1][1], 1, 0, 0, 0],
-                                       [0, 0, 0, leftTriangle.vertices[1][0], leftTriangle.vertices[1][1], 1],
-                                       [leftTriangle.vertices[2][0], leftTriangle.vertices[2][1], 1, 0, 0, 0],
-                                       [0, 0, 0, leftTriangle.vertices[2][0], leftTriangle.vertices[2][1], 1]])
-            tempRightMatrix = np.array([[rightTriangle.vertices[0][0], rightTriangle.vertices[0][1], 1, 0, 0, 0],
-                                       [0, 0, 0, rightTriangle.vertices[0][0], rightTriangle.vertices[0][1], 1],
-                                       [rightTriangle.vertices[1][0], rightTriangle.vertices[1][1], 1, 0, 0, 0],
-                                       [0, 0, 0, rightTriangle.vertices[1][0], rightTriangle.vertices[1][1], 1],
-                                       [rightTriangle.vertices[2][0], rightTriangle.vertices[2][1], 1, 0, 0, 0],
-                                       [0, 0, 0, rightTriangle.vertices[2][0], rightTriangle.vertices[2][1], 1]])
-            lefth = np.linalg.solve(tempLeftMatrix, targetVertices)
-            righth = np.linalg.solve(tempRightMatrix, targetVertices)
-            leftH = np.array([[lefth[0][0], lefth[1][0], lefth[2][0]], [lefth[3][0], lefth[4][0], lefth[5][0]], [0, 0, 1]])
-            rightH = np.array([[righth[0][0], righth[1][0], righth[2][0]], [righth[3][0], righth[4][0], righth[5][0]], [0, 0, 1]])
-            # can add .round(decimals=5) to the end of left and right invH to reduce precision, seems to have no negative visual effects
-            leftinvH = np.linalg.inv(leftH).round(decimals=5)
-            rightinvH = np.linalg.inv(rightH).round(decimals=5)
-            targetPoints = targetTriangle.getPoints()
-            for x in targetPoints:  # TODO: HUGE Bottleneck (~90% of Program Runtime!) ... Unsure of how to optimize.
-                x = np.array([[x[0]], [x[1]], [1]])
-                leftSourcePoint = np.matmul(leftinvH, x)  # TODO: Roughly 21% of Bottleneck
-                rightSourcePoint = np.matmul(rightinvH, x)  # TODO: Roughly 21% of Bottleneck
-                self.leftImage[int(x[1])][int(x[0])] = leftInterpolation(leftSourcePoint[1], leftSourcePoint[0])  # TODO: Roughly 29% of Bottleneck
-                self.rightImage[int(x[1])][int(x[0])] = rightInterpolation(rightSourcePoint[1], rightSourcePoint[0])  # TODO: Roughly 29% of Bottleneck
+            t = threading.Thread(target=self.interpolatePoints, args=(leftTriangle, rightTriangle, alpha))
+            t.start()
+        main_thread = threading.currentThread()
+        for t in threading.enumerate():
+            if t is not main_thread:
+                t.join()
+        '''
+
+        #with concurrent.futures.ThreadPoolExecutor() as executor:
+        #    results = [executor.submit(self.interpolatePoints, leftTriangle, rightTriangle, alpha) for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles)]
+
+        '''
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = [executor.submit(self.interpolatePoints, leftTriangle, rightTriangle, alpha) for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles)]
+        '''
+
+        for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles):
+            self.interpolatePoints(leftTriangle, rightTriangle, alpha)
+
         blendARR = ((1 - alpha) * self.leftImage + alpha * self.rightImage)
         blendARR = blendARR.astype(np.uint8)
         return blendARR
 
-# EXPERIMENTAL MANUAL INTERPOLATION METHOD.. TAKES 2-3X AS LONG, IMAGE INCORRECT.. COULD BE FIXED...
-'''
-z = float(leftSourcePoint[0])
-z1 = math.floor(z)
-z2 = math.ceil(z)
-y = float(leftSourcePoint[1])
-y1 = math.floor(y)
-y2 = math.ceil(y)
-if z1 == z2:
-    z1 = max(0, z1 - 1)
-    z2 = min(self.leftImage.shape[1], z2 + 1)
-    # left_fx_y1 = self.leftImage([y1][z1])
-    # left_fx_y2 = self.leftImage([y2][z1])
-left_fx_y1 = ((z2 - float(z)) / (z2 - z1)) * self.leftImage[y1][z1] + ((z - z1) / (z2 - z1)) * self.leftImage[y1][z2]
-left_fx_y2 = ((z2 - z) / (z2 - z1)) * self.leftImage[y2][z1] + ((z - z1) / (z2 - z1)) * self.leftImage[y2][z2]
+    def interpolatePoints(self, leftTriangle, rightTriangle, alpha):
+        targetTriangle = Triangle(leftTriangle.vertices + (rightTriangle.vertices - leftTriangle.vertices) * alpha)
+        targetVertices = targetTriangle.vertices.reshape(6, 1)
+        tempLeftMatrix = np.array([[leftTriangle.vertices[0][0], leftTriangle.vertices[0][1], 1, 0, 0, 0],
+                                   [0, 0, 0, leftTriangle.vertices[0][0], leftTriangle.vertices[0][1], 1],
+                                   [leftTriangle.vertices[1][0], leftTriangle.vertices[1][1], 1, 0, 0, 0],
+                                   [0, 0, 0, leftTriangle.vertices[1][0], leftTriangle.vertices[1][1], 1],
+                                   [leftTriangle.vertices[2][0], leftTriangle.vertices[2][1], 1, 0, 0, 0],
+                                   [0, 0, 0, leftTriangle.vertices[2][0], leftTriangle.vertices[2][1], 1]])
+        tempRightMatrix = np.array([[rightTriangle.vertices[0][0], rightTriangle.vertices[0][1], 1, 0, 0, 0],
+                                    [0, 0, 0, rightTriangle.vertices[0][0], rightTriangle.vertices[0][1], 1],
+                                    [rightTriangle.vertices[1][0], rightTriangle.vertices[1][1], 1, 0, 0, 0],
+                                    [0, 0, 0, rightTriangle.vertices[1][0], rightTriangle.vertices[1][1], 1],
+                                    [rightTriangle.vertices[2][0], rightTriangle.vertices[2][1], 1, 0, 0, 0],
+                                    [0, 0, 0, rightTriangle.vertices[2][0], rightTriangle.vertices[2][1], 1]])
+        lefth = np.linalg.solve(tempLeftMatrix, targetVertices)
+        righth = np.linalg.solve(tempRightMatrix, targetVertices)
+        leftH = np.array([[lefth[0][0], lefth[1][0], lefth[2][0]], [lefth[3][0], lefth[4][0], lefth[5][0]], [0, 0, 1]])
+        rightH = np.array(
+            [[righth[0][0], righth[1][0], righth[2][0]], [righth[3][0], righth[4][0], righth[5][0]], [0, 0, 1]])
+        # can add .round(decimals=x) to the end of left and right invH to reduce precision
+        leftinvH = np.linalg.inv(leftH)
+        rightinvH = np.linalg.inv(rightH)
+        targetPoints = targetTriangle.getPoints()
 
-if y1 == y2:
-    y1 = max(0, y1 - 1)
-    y2 = min(self.leftImage.shape[0], y2 + 1)
-self.leftImage[int(x[1])][int(x[0])] = ((y2 - y) / (y2 - y1)) * left_fx_y1 + ((y - y1) / (y2 - y1)) * left_fx_y2
+        # np.delete(array, 2, 1)
+        leftSourcePoints = np.transpose(np.matmul(leftinvH, targetPoints))
+        rightSourcePoints = np.transpose(np.matmul(rightinvH, targetPoints))
+        targetPoints = np.transpose(targetPoints)
+        #return zip(targetPoints, leftSourcePoints, rightSourcePoints)
+        self.lock.acquire()
+        for x, y, z in zip(targetPoints, leftSourcePoints, rightSourcePoints):
+            self.leftImage[int(x[1])][int(x[0])] = self.leftInterpolation(y[1], y[0])
+            self.rightImage[int(x[1])][int(x[0])] = self.rightInterpolation(z[1], z[0])
+        self.lock.release()
 
-z = float(rightSourcePoint[0])
-z1 = math.floor(z)
-z2 = math.ceil(z)
-y = float(rightSourcePoint[1])
-y1 = math.floor(y)
-y2 = math.ceil(y)
-if z1 == z2:
-    z1 = max(0, z1 - 1)
-    z2 = min(self.rightImage.shape[1], z2 + 1)
-    # left_fx_y1 = self.leftImage([y1][z1])
-    # left_fx_y2 = self.leftImage([y2][z1])
-right_fx_y1 = ((z2 - float(z)) / (z2 - z1)) * self.rightImage[y1][z1] + ((z - z1) / (z2 - z1)) * self.rightImage[y1][z2]
-right_fx_y2 = ((z2 - z) / (z2 - z1)) * self.rightImage[y2][z1] + ((z - z1) / (z2 - z1)) * self.rightImage[y2][z2]
-
-if y1 == y2:
-    y1 = max(0, y1 - 1)
-    y2 = min(self.rightImage.shape[0], y2 + 1)
-self.rightImage[int(x[1])][int(x[0])] = ((y2 - y) / (y2 - y1)) * right_fx_y1 + ((y - y1) / (y2 - y1)) * right_fx_y2
-'''
 
 
 if __name__ == "__main__":
