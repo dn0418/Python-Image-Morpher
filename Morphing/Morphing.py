@@ -193,21 +193,3 @@ class Morpher:
             self.leftImage[int(x[1])][int(x[0])] = self.leftInterpolation(y[1], y[0])
             self.rightImage[int(x[1])][int(x[0])] = self.rightInterpolation(z[1], z[0])
         #self.lock.release()
-
-
-
-if __name__ == "__main__":
-    #with PyCallGraph(output=GraphvizOutput()):
-        begin = time.time()
-        leftPointFilePath = 'C:/Users/xzomb/PycharmProjects/Personal/Morphing/Images_Points/StartGray1.txt'
-        rightPointFilePath = 'C:/Users/xzomb/PycharmProjects/Personal/Morphing/Images_Points/EndGray1.txt'
-        testTuple = loadTriangles(leftPointFilePath, rightPointFilePath)
-        left = imageio.imread('C:/Users/xzomb/PycharmProjects/Personal/Morphing/Images_Points/StartGray1.jpg')
-        right = imageio.imread('C:/Users/xzomb/PycharmProjects/Personal/Morphing/Images_Points/EndGray1.jpg')
-        leftARR = np.asarray(left)
-        rightARR = np.asarray(right)
-        testMorph = Morpher(leftARR, testTuple[0], rightARR, testTuple[1])
-        blendARR = testMorph.getImageAtAlpha(0.5, 0)
-        im = Image.fromarray(blendARR)
-        im.save("blah.jpg")
-        print("Took a total of " + str(time.time() - begin) + " seconds.\n")

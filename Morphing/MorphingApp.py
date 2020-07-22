@@ -887,6 +887,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.autoCornerButton.setEnabled(1)
             # Check if 3 or more points exist for two corresponding images so that triangles may be displayed
             if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
+                self.blendButton.setEnabled(1)
                 self.triangleBox.setEnabled(1)
                 self.triangleBox.setChecked(self.triangleUpdatePref)
         self.displayTriangles()
@@ -968,6 +969,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.autoCornerButton.setEnabled(1)
             # Check if 3 or more points exist for two corresponding images so that triangles may be displayed
             if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
+                self.blendButton.setEnabled(1)
                 self.triangleBox.setEnabled(1)
                 self.triangleBox.setChecked(self.triangleUpdatePref)
         self.displayTriangles()

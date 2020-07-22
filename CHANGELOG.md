@@ -9,6 +9,8 @@
     data and append it all into one ordered list (which was then converted and reshaped into an array for image processing)...
     obviously, this lengthy explanation should highlight that this was all a very inefficient use of space and time.
     This has now been remedied.</i>
+- Removed several module dependencies as well as the main block in Morphing.py in preparation for this program's first
+release candidate
 ## Fixes
 - <b>Resolved a known issue with point placement via the GUI where points were [often vertically] off center</b>
     - Comment: <i>TL;DR: The corner coordinates and scalar values (!!) for the left and right images weren't being calculated
