@@ -1,8 +1,6 @@
 #######################################################
 #   Author:     David Dowd
-#   email:      ddowd@purdue.edu
-#   ID:         ee364e06
-#   Date:       04/05/19
+#   Email:      ddowd97@gmail.com
 #######################################################
 
 import os
@@ -132,7 +130,7 @@ class Morpher:
         self.rightTriangles = rightTriangles  # Not of type np.uint8
         self.leftInterpolation = RectBivariateSpline(np.arange(0, self.leftImage.shape[0], 1), np.arange(0, self.leftImage.shape[1], 1), self.leftImage)
         self.rightInterpolation = RectBivariateSpline(np.arange(0, self.leftImage.shape[0], 1), np.arange(0, self.leftImage.shape[1], 1), self.rightImage)
-        self.lock = threading.Lock()
+        #self.lock = threading.Lock()
 
     #@profile
     def getImageAtAlpha(self, alpha, mode):
@@ -191,11 +189,11 @@ class Morpher:
         rightSourcePoints = np.transpose(np.matmul(rightinvH, targetPoints))
         targetPoints = np.transpose(targetPoints)
         #return zip(targetPoints, leftSourcePoints, rightSourcePoints)
-        self.lock.acquire()
+        #self.lock.acquire()
         for x, y, z in zip(targetPoints, leftSourcePoints, rightSourcePoints):
             self.leftImage[int(x[1])][int(x[0])] = self.leftInterpolation(y[1], y[0])
             self.rightImage[int(x[1])][int(x[0])] = self.rightInterpolation(z[1], z[0])
-        self.lock.release()
+        #self.lock.release()
 
 
 

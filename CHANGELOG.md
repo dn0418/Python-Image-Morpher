@@ -1,4 +1,59 @@
+# Version 2.6 - (2020-07-21)
+## Changes
+- Optimized out <i>several</i> for loops (both nested and not) in <b>blendImages()</b> in favor of more efficient NumPythonic syntax
+    - Image deconstruction is now handled by dimension slicing, i.e., "leftColorValueR = leftARR[:, :, 0]"
+    - Image reconstruction is now handled by this simple one-liner: "np.dstack((blendR, blendG, blendB, [blendA]))"</i>
+    - Comment: <i>When recreating color images, the program will work with 3 or 4 array slices which later need to combine into one
+    final image. My initial (inexperienced) approach was to create for loops in order to read the initial layers of data from the 
+    two images into multiple lists (which were then converted and reshaped into arrays) and <b>then</b> to later create double for loops in order to iterate over the blended array
+    data and append it all into one ordered list (which was then converted and reshaped into an array for image processing)...
+    obviously, this lengthy explanation should highlight that this was all a very inefficient use of space and time.
+    This has now been remedied.</i>
+## Fixes
+- <b>Resolved a known issue with point placement via the GUI where points were [often vertically] off center</b>
+    - Comment: <i>TL;DR: The corner coordinates and scalar values (!!) for the left and right images weren't being calculated
+    accurately enough. The methodology I adopted for this implementation (with the resize update) was a bit sloppy anyways,
+    so variables such as <b>self.leftMinX</b>, <b>self.rightMaxX</b>, <b>self.maxY</b>, and more have all been removed in 
+    favor of more dynamic Qt methods - e.g., <b>self.startingImage.geometry().topLeft().x()</b>.</i>
+- Fixed an I/O crash where, if the Images_Points folder didn't exist, the program couldn't create new text files
+- Fixed an index out of bounds crash when accessing images in <b>autoCorner()</b>
+- Fixed a crash where the user could press the blend button before morphing was even enabled
+    - Comment: <i>I actually laughed when I accidentally caught this during debugging.. what an entertaining oversight.</i>
+- Fixed a bug where the GUI would fail to visibly update during the morphing process
+    - The blend button now locks up and the notification bar displays a relevant message while the program operates
+    - Comment: <i>These things were already happening in the background; visible changes to the QtGui just wouldn't apply
+    due to the fact that the MainWindow "wasn't responding." Qt's repaint() method serves as a simple workaround here.</i>
+- Fixed a bug where regex in <b>loadDataLeft()</b> and <b>loadDataRight()</b> wasn't correctly detecting '.PNG' images
+    - ".png$" → ".(PNG|png)$" 
+- Fixed a bug where, after invoking <b>resetPoints()</b> with triangleUpdatePref on, the first set of added points would 
+use the wrong size & style before being confirmed
+- Fixed a bug where <b>resetPoints()</b> wasn't properly enabling the Add Corners button of the GUI
+- Fixed a bug where the Reset Points button was sometimes incorrectly disabled after invoking Undo (CTRL + Z) on a newly 
+confirmed set of points
+    - "if len(confirmed_x) >= 3:" → "if len(chosen_x) + len(confirmed_x) >= 3:"
+- Fixed a bug where old triangles would still display on the GUI after invoking <b>resetPoints()</b> with triangleUpdatePref on
+- Fixed a bug where, when triangleUpdatePref was on but the triangle box was disabled, triangles were not displaying
+during certain mousePressEvents
+    - Comment: <i>There was an.. admittedly ugly.. triple nested conditional in <b>mousePressEvent()</b> that received
+    a fair amount of cleanup with this update. The point of it was to check if the total number of chosen and confirmed
+    points was at least 3 and then enable triangles - this doesn't work well after a reset with triangleUpdatePref, so now the conditional
+    checks if the total number of added, chosen, and confirmed points is at least 3 (but only invokes when currentWindow
+    is set to the left image).</i>
+- Fixed a bug where invoking <b>autoCorner()</b> wasn't re-checking the triangle box when triangleUpdatePref was on
+- "Fixed" a bug where triangle color values weren't being remembered by the program when disabled/enabled
+    - Comment: <i>The moment I began debugging this, the issue mysteriously resolved itself without any lasting change 
+    to the source code.</i>
+- Removed an instance where self.currentWindow was unnecessarily set in <b>resetPoints()</b>
+- Removed an instance where <b>refreshPaint()</b> was being invoked twice in <b>resetPoints()</b>
+- Removed the self.resetFlag variable
+    - Comment: <i>With this update's implementation of bug fixes for <b>resetPoints()</b>, this variable became obsolete
+    and is consequently being removed.</i>
+- Other general code cleanup
+
 # Version 2.5.1 - (2020-07-07)
+## Known Bugs
+- Instances where points added through the GUI are vertically off center
+    - Especially apparent after the first blend has been executed (which reshapes the GUI by a bit)
 ## Unreleased
 - Multithreading / multiprocessing implementation for <b>getImageAtAlpha()</b> in order to improve performance
     - Comment: <i>Multiprocessing is applicable to the matrix math while multithreading is applicable to sharing the
