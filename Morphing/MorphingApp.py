@@ -4,17 +4,17 @@
 #######################################################
 
 import multiprocessing
-import os
+# import os
 import sys
 import re
-import time
+# import time
 from shutil import copyfile
 
-import imageio
-import numpy as np
+# import imageio
+# import numpy as np
 from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog, QGraphicsScene, QGraphicsView
-from PyQt5 import QtGui, QtCore
-from scipy.spatial.qhull import Delaunay
+# from PyQt5 import QtGui, QtCore
+# from scipy.spatial.qhull import Delaunay
 import copy
 import math
 
@@ -25,7 +25,6 @@ from MorphingGUI import *
 
 # Module  level  Variables
 #######################################################
-# DataPath = os.path.expanduser('/Users/USER/PycharmProjects/Personal/')
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
