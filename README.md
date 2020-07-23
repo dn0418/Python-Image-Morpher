@@ -38,4 +38,6 @@ python get-pip.py
 - [X] Full Blend (User may toggle a flag that tells the program to render each ~~0.05~~ specified alpha increment blend and the alpha slider instead displays each frame - this heavily relies on the next point)
 - [ ] Improved Performance (Currently, interpolation is the biggest bottleneck, second to the required matrix math)
 
+If you encounter an error, a bug, or if you simply wish to request a change/feature, please file an issue using the tracker that GitHub provides, [here](https://github.com/ddowd97/Morphing/issues).
+
 If you like what you see, feel free to contact me on [LinkedIn](https://www.linkedin.com/in/davidmilesdowd/).
