@@ -1,4 +1,4 @@
-# Version 2.6 - (2020-07-21)
+# Version 0.2.6.0 - (2020-07-21)
 ## Changes
 - Optimized out <i>several</i> for loops (both nested and not) in <b>blendImages()</b> in favor of more efficient NumPythonic syntax
     - Image deconstruction is now handled by dimension slicing, i.e., "leftColorValueR = leftARR[:, :, 0]"
@@ -52,7 +52,7 @@ during certain mousePressEvents
     and is consequently being removed.</i>
 - Other general code cleanup
 
-# Version 2.5.1 - (2020-07-07)
+# Version 0.2.5.1 - (2020-07-07)
 ## Known Bugs
 - Instances where points added through the GUI are vertically off center
     - Especially apparent after the first blend has been executed (which reshapes the GUI by a bit)
@@ -67,7 +67,7 @@ during certain mousePressEvents
     - Roughly translates to a 20% speedup
 - Moved image interpolation from <b>getImageAtAlpha()</b> to the new <b>interpolatePoints()</b>
 
-# Version 2.5 - <i>Endless Polishing</i> (2020-07-01)
+# Version 0.2.5.0 - <i>Endless Polishing</i> (2020-07-01)
 ## Known Bugs
 - Instances where points added through the GUI are vertically off center
     - Especially apparent after the first blend has been executed (which reshapes the GUI by a bit)
@@ -144,7 +144,7 @@ into the parent
     dangerous bug with the addition of user input.</i>
 - Other general code cleanup
 
-# Version 2.4 - (2020-06-27)
+# Version 0.2.4.0 - (2020-06-27)
 ## Added
 - <b>Full Blending</b>
     - The user can now check the Full Blend box before clicking blend to have the program generate a frame for each 0.05
@@ -166,7 +166,7 @@ because of this, is disabled by default.</i>
 ## Fixes
 - Removed an extra (unnecessary) call to refreshPaint() in mousePressEvent()
 
-# Version 2.3 - <i> The Cleanup Update </i> (2020-06-26)
+# Version 0.2.3.0 - <i> The Cleanup Update </i> (2020-06-26)
 ## Unreleased
 - Potential incomplete fix for interpolation performance by way of manual pixel calculation (instead of using scipy's
 RectBivariateSpline function, which is ~58% of this program's runtime)
@@ -181,7 +181,7 @@ reduction in SLOC)
     - Moved all re-declarations of QPainter, QPen(), and it's width to initialization; removed unnecessary QPainter.end() calls
         - Comment: <i> At the time of creation of Version 1.0, there could only be one QPainter at a time (for whatever
         reason, most likely through fault of my own), so multiple initializations/terminations were required. 
-        Version 2.3 can have multiple QPainters active at a time and, consequently, has no need for this behavior.</i>
+        Version 0.2.3.0 can have multiple QPainters active at a time and, consequently, has no need for this behavior.</i>
     - Removed all "if QPainter.isactive" checks
         - Comment: <i> As far as I'm aware, these never did anything to begin with.</i>
     - Removed unnecessary "changes" to the left/right images after painting
@@ -214,7 +214,7 @@ painter behavior). This has been fixed in the following functions:
 - Instances where other functions were directly calling paintEvent() have been replaced with calls to refreshPaint() instead
 - Other general code cleanup
 
-# Version 2.2 (2020-06-21)
+# Version 0.2.2.0 (2020-06-21)
 ## Added
 - <b>Triangle Widget</b>
     - When the user enables Show Triangles, there is now an accessible widget that provides RGB sliders to change the
@@ -233,7 +233,7 @@ be easier to see on top of the two images. Clarity is key.</i>
 ## Fixes
 - The blend button is now disabled during the time that the program is executing a blend command
 
-# Version 2.1 (2020-06-20)
+# Version 0.2.1.0 (2020-06-20)
 ## Added
 - <b>Notification Bar</b>
     - The GUI now displays an information panel at the bottom left that outputs the status of the user's actions
@@ -255,7 +255,7 @@ be easier to see on top of the two images. Clarity is key.</i>
 ## Fixes
 - Add Corners no longer creates additional points that already existed
 
-# Version 2.0 - <i>The GUI Overhaul</i> (2020-06-17)
+# Version 0.2.0.0 - <i>The GUI Overhaul</i> (2020-06-17)
 ## Added
 - <b>Resizing</b>
     - The user is now able to freely resize the window along with its contents
