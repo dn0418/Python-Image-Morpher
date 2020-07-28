@@ -4,23 +4,16 @@
 #######################################################
 
 import multiprocessing
-# import os
 import sys
 import re
-# import time
+import time
 from shutil import copyfile
 
-# import imageio
-# import numpy as np
+import imageio
 from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog, QGraphicsScene, QGraphicsView
-# from PyQt5 import QtGui, QtCore
-# from scipy.spatial.qhull import Delaunay
-import copy
 import math
 
 from Morphing import *
-# from Morphing import Triangle, loadTriangles, Morpher
-# from MorphingGUI import Ui_MainWindow
 from MorphingGUI import *
 
 # Module  level  Variables
@@ -271,14 +264,14 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             leftPic = QtGui.QPixmap(self.startingImagePath)
             rightPic = QtGui.QPixmap(self.endingImagePath)
             pen = QtGui.QPen()
-            pen.setWidth(7)
+            pen.setWidth(4)
             leftpainter = QtGui.QPainter(leftPic)
             rightpainter = QtGui.QPainter(rightPic)
-            pointWidth = 7
+            pointWidth = 4
 
             if self.triangleUpdate == 1:
                 if len(self.leftPolyList) == len(self.rightPolyList) > 0:
-                    pointWidth = 11
+                    pointWidth = 7
                     pen.setColor(QtGui.QColor(self.redVal, self.greenVal, self.blueVal, 255))
                     leftpainter.setPen(pen)
                     for x in self.leftPolyList:
@@ -661,7 +654,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.notificationLine.setText(" Calculating grayscale morph...")
             self.repaint()
             grayScale = Morpher(leftImageARR, triangleTuple[0], rightImageARR, triangleTuple[1])
-            backupGrayScale = copy.deepcopy(grayScale)
             start_time = time.time()
             if self.blendBoxSetting:
                 self.verifyBlendValue()
@@ -672,7 +664,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                         self.blendList.append(grayScale.getImageAtAlpha(1.0, 0))
                     else:
                         self.blendList.append(grayScale.getImageAtAlpha(x * self.fullBlendValue, 0))
-                        grayScale = copy.deepcopy(backupGrayScale)
                     x += 1
                 self.fullBlendComplete = True
                 temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
@@ -682,15 +673,12 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 grayscaleBlend = grayScale.getImageAtAlpha(float(self.alphaValue.text()), 0)
                 blendImage = QtGui.QImage(grayscaleBlend.data, grayscaleBlend.shape[1], grayscaleBlend.shape[0], QtGui.QImage.Format_Grayscale8)
             self.notificationLine.setText(" Morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
-        elif not self.leftPNG or not self.rightPNG or not self.transparencySetting or (len(leftImageRaw.shape) == 3 and len(rightImageRaw.shape) == 3):  # if color, no alpha (.JPG)
+        elif not self.leftPNG or not self.rightPNG or not self.transparencySetting or (leftImageRaw.shape[2] == 3 and rightImageRaw.shape[2] == 3):  # if color, no alpha (.JPG)
             self.notificationLine.setText(" Calculating RGB (.jpg) morph...")
             self.repaint()
             colorScaleR = Morpher(leftImageARR[:, :, 0], triangleTuple[0], rightImageARR[:, :, 0], triangleTuple[1])
             colorScaleG = Morpher(leftImageARR[:, :, 1], triangleTuple[0], rightImageARR[:, :, 1], triangleTuple[1])
             colorScaleB = Morpher(leftImageARR[:, :, 2], triangleTuple[0], rightImageARR[:, :, 2], triangleTuple[1])
-            backupColorScaleR = copy.deepcopy(colorScaleR)
-            backupColorScaleG = copy.deepcopy(colorScaleG)
-            backupColorScaleB = copy.deepcopy(colorScaleB)
 
             start_time = time.time()
             if self.blendBoxSetting:
@@ -713,9 +701,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     pool.join()
 
                     self.blendList.append(np.dstack((blendR, blendG, blendB)))
-                    colorScaleR = copy.deepcopy(backupColorScaleR)
-                    colorScaleG = copy.deepcopy(backupColorScaleG)
-                    colorScaleB = copy.deepcopy(backupColorScaleB)
                     counter += 1
                 self.fullBlendComplete = True
                 temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
@@ -737,17 +722,13 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
                 blendRGB = np.dstack((blendR, blendG, blendB))
                 blendImage = QtGui.QImage(blendRGB.data, blendRGB.shape[1], blendRGB.shape[0], QtGui.QImage.Format_RGB888)
-        elif self.leftPNG and self.rightPNG and self.transparencySetting and len(leftImageRaw.shape) == 4 and len(rightImageRaw.shape) == 4:   # if color, alpha (.PNG)
+        elif self.leftPNG and self.rightPNG and self.transparencySetting and leftImageRaw.shape[2] == 4 and rightImageRaw.shape[2] == 4:   # if color, alpha (.PNG)
             self.notificationLine.setText(" Calculating RGBA (.png) morph...")
             self.repaint()
             colorScaleR = Morpher(leftImageARR[:, :, 0], triangleTuple[0], rightImageARR[:, :, 0], triangleTuple[1])
             colorScaleG = Morpher(leftImageARR[:, :, 1], triangleTuple[0], rightImageARR[:, :, 1], triangleTuple[1])
             colorScaleB = Morpher(leftImageARR[:, :, 2], triangleTuple[0], rightImageARR[:, :, 2], triangleTuple[1])
             colorScaleA = Morpher(leftImageARR[:, :, 3], triangleTuple[0], rightImageARR[:, :, 3], triangleTuple[1])
-            backupColorScaleR = copy.deepcopy(colorScaleR)
-            backupColorScaleG = copy.deepcopy(colorScaleG)
-            backupColorScaleB = copy.deepcopy(colorScaleB)
-            backupColorScaleA = copy.deepcopy(colorScaleA)
 
             start_time = time.time()
             if self.blendBoxSetting:
@@ -772,10 +753,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     pool.join()
 
                     self.blendList.append(np.dstack((blendR, blendG, blendB, blendA)))
-                    colorScaleR = copy.deepcopy(backupColorScaleR)
-                    colorScaleG = copy.deepcopy(backupColorScaleG)
-                    colorScaleB = copy.deepcopy(backupColorScaleB)
-                    colorScaleA = copy.deepcopy(backupColorScaleA)
                     counter += 1
                 self.fullBlendComplete = True
                 temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]

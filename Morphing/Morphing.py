@@ -4,21 +4,12 @@
 #######################################################
 
 import os
-import imageio
-import time
-from scipy.spatial import Delaunay
-from scipy.interpolate import RectBivariateSpline
-from matplotlib.path import Path
-import numpy as np
-from PIL import Image
+import copy
+from scipy.spatial import Delaunay                  # pip install scipy
+from scipy.interpolate import RectBivariateSpline   # pip install scipy
+from matplotlib.path import Path                    # pip install matplotlib
+import numpy as np                                  # pip install numpy
 import itertools
-# import concurrent.futures
-# import multiprocessing
-# import threading
-
-# from profilehooks import profile
-# from pycallgraph import PyCallGraph
-# from pycallgraph.output import GraphvizOutput
 
 # Module  level  Variables
 #######################################################
@@ -34,6 +25,8 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 def loadTriangles(leftPointFilePath: str, rightPointFilePath: str) -> tuple:
     leftList = []
     rightList = []
+    leftTriList = []
+    rightTriList = []
 
     with open(leftPointFilePath, "r") as leftFile:
         for j in leftFile:
@@ -44,24 +37,16 @@ def loadTriangles(leftPointFilePath: str, rightPointFilePath: str) -> tuple:
 
     leftArray = np.array(leftList, np.float64)
     rightArray = np.array(rightList, np.float64)
-    leftTri = Delaunay(leftArray)
-    rightTri = leftTri
-    #rightTri.vertices = rightList
-    rightTri.vertices = rightArray
+    delaunayTri = Delaunay(leftArray)
 
-    leftNP = np.array(leftArray[leftTri.simplices], np.float64)
-    rightNP = np.array(rightArray[rightTri.simplices], np.float64)
+    leftNP = leftArray[delaunayTri.simplices]
+    rightNP = rightArray[delaunayTri.simplices]
 
-    leftTriList = []
-    rightTriList = []
-
-    for x in leftNP:
+    for x, y in zip(leftNP, rightNP):
         leftTriList.append(Triangle(x))
-    for y in rightNP:
         rightTriList.append(Triangle(y))
 
-    triangleTuple = (leftTriList, rightTriList)
-    return triangleTuple
+    return leftTriList, rightTriList
 
 
 class Triangle:
@@ -91,14 +76,7 @@ class Triangle:
         mask = grid.reshape(maxX - minX + 1, maxY - minY + 1)
 
         trueArray = np.where(np.array(mask) == True)
-        leftArray = (trueArray[0] + minX).reshape(np.shape(trueArray[0])[0], 1)
-        rightArray = (trueArray[1] + minY).reshape(np.shape(trueArray[1])[0], 1)
-        coordArray = np.hstack((leftArray, rightArray))
-
-        # TODO: New! Crude and quickly thrown together. Reminder to clean this function up later.
-        coordArray = np.transpose(coordArray)
-        temp = np.ones(coordArray.shape[1])
-        coordArray = np.vstack((coordArray, temp))
+        coordArray = np.vstack((trueArray[0] + minX, trueArray[1] + minY, np.ones(trueArray[0].shape[0])))
 
         return coordArray
 
@@ -123,34 +101,14 @@ class Morpher:
         for k in rightTriangles:
             if isinstance(k, Triangle) == 0:
                 raise TypeError('Element of input rightTriangles is not of Class Triangle')
-        self.leftImage = leftImage
+        self.leftImage = copy.deepcopy(leftImage)
         self.leftTriangles = leftTriangles  # Not of type np.uint8
-        self.rightImage = rightImage
+        self.rightImage = copy.deepcopy(rightImage)
         self.rightTriangles = rightTriangles  # Not of type np.uint8
         self.leftInterpolation = RectBivariateSpline(np.arange(0, self.leftImage.shape[0], 1), np.arange(0, self.leftImage.shape[1], 1), self.leftImage)
         self.rightInterpolation = RectBivariateSpline(np.arange(0, self.leftImage.shape[0], 1), np.arange(0, self.leftImage.shape[1], 1), self.rightImage)
-        #self.lock = threading.Lock()
 
-    #@profile
     def getImageAtAlpha(self, alpha, mode):
-        '''
-        for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles):
-            t = threading.Thread(target=self.interpolatePoints, args=(leftTriangle, rightTriangle, alpha))
-            t.start()
-        main_thread = threading.currentThread()
-        for t in threading.enumerate():
-            if t is not main_thread:
-                t.join()
-        '''
-
-        #with concurrent.futures.ThreadPoolExecutor() as executor:
-        #    results = [executor.submit(self.interpolatePoints, leftTriangle, rightTriangle, alpha) for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles)]
-
-        '''
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            results = [executor.submit(self.interpolatePoints, leftTriangle, rightTriangle, alpha) for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles)]
-        '''
-
         for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles):
             self.interpolatePoints(leftTriangle, rightTriangle, alpha)
 
@@ -176,20 +134,15 @@ class Morpher:
         lefth = np.linalg.solve(tempLeftMatrix, targetVertices)
         righth = np.linalg.solve(tempRightMatrix, targetVertices)
         leftH = np.array([[lefth[0][0], lefth[1][0], lefth[2][0]], [lefth[3][0], lefth[4][0], lefth[5][0]], [0, 0, 1]])
-        rightH = np.array(
-            [[righth[0][0], righth[1][0], righth[2][0]], [righth[3][0], righth[4][0], righth[5][0]], [0, 0, 1]])
-        # can add .round(decimals=x) to the end of left and right invH to reduce precision
+        rightH = np.array([[righth[0][0], righth[1][0], righth[2][0]], [righth[3][0], righth[4][0], righth[5][0]], [0, 0, 1]])
         leftinvH = np.linalg.inv(leftH)
         rightinvH = np.linalg.inv(rightH)
         targetPoints = targetTriangle.getPoints()
 
-        # np.delete(array, 2, 1)
         leftSourcePoints = np.transpose(np.matmul(leftinvH, targetPoints))
         rightSourcePoints = np.transpose(np.matmul(rightinvH, targetPoints))
         targetPoints = np.transpose(targetPoints)
-        #return zip(targetPoints, leftSourcePoints, rightSourcePoints)
-        #self.lock.acquire()
+
         for x, y, z in zip(targetPoints, leftSourcePoints, rightSourcePoints):
             self.leftImage[int(x[1])][int(x[0])] = self.leftInterpolation(y[1], y[0])
             self.rightImage[int(x[1])][int(x[0])] = self.rightInterpolation(z[1], z[0])
-        #self.lock.release()

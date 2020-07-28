@@ -1,3 +1,14 @@
+# Version 0.2.6.1 - (2020-07-27)
+## Changes
+- Optimizations to Morphing.py's <b>loadTriangles()</b> and <b>getPoints()</b> functions
+    - Declarations, re-assignments, loops, and return statements have been streamlined to be more efficient
+- Optimized MorphingApp.py's <b>blendImages()</b> function to no longer have to [repeatedly] deepcopy each array slice
+    - Initialization of a Morpher object will now deepcopy the passed arguments to its left and right image variables 
+- Overhauled README.md to now support this program's releases
+- Once again, removed more unnecessary module dependencies that were accidentally included in the last commit
+## Fixes
+- Fixed a bug where .png (RGBA) images could only be morphed into .jpg images (RGB)
+
 # Version 0.2.6.0 - (2020-07-21)
 ## Changes
 - Optimized out <i>several</i> for loops (both nested and not) in <b>blendImages()</b> in favor of more efficient NumPythonic syntax
@@ -65,6 +76,8 @@ during certain mousePressEvents
     - Matrix multiplication is now conducted across each triangle's entire set of points at once (as opposed to 
     multiplying each individual point at a time)
     - Roughly translates to a 20% speedup
+- Assignment of self.leftInterpolation and self.rightInterpolation has been moved from <b>getImageAtAlpha()</b> to the
+ initialization of the given Morpher object in order to reduce the number of calls to RectBivariateSpline()
 - Moved image interpolation from <b>getImageAtAlpha()</b> to the new <b>interpolatePoints()</b>
 
 # Version 0.2.5.0 - <i>Endless Polishing</i> (2020-07-01)
