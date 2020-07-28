@@ -3,7 +3,7 @@
 </p>
 
 Python Image Morpher (PIM) is a program that can take two images and blend them to whatever extent or precision that you like!
-It is intentionally designed to emulate Python's OpenCV module from scratch without reference.
+It is designed to emulate some of Python's OpenCV image processing from scratch without reference.
 
 This project began in Spring 2019 (detailed in <b>readme_general.pdf</b>, <b>readme_phase_1.pdf</b>, and <b>readme_phase_2.pdf</b>),
  requiring the usage of <b>delaunay triangulation</b>, <b>projective/affine transformation</b>, <b>application of projections 
