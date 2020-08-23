@@ -1,3 +1,29 @@
+# Version 0.2.7.0 - (2020-08-22)
+## Known Bugs
+- The GUI can sometimes become unresponsive during morphing calculations
+    - QtCore.QCoreApplication.processEvents() is a potential workaround but currently produces buggy results
+
+## Added
+- <b>Morphed Image Smoothing</b>
+    - A toggleable median filter is now applied to every blend and full blend
+        - This filter attempts to remove hot pixels in morphed images by utilizing neighboring pixel values instead
+        - Very little to no impact on program performance
+
+Comment: <i> Since this isn't always necessary (and very slightly degrades image quality), it is disabled by default.</i>
+
+## Changes
+- The GUI now displays the current image frame being generated when full blending is enabled
+- Morphing.py's <b>getPoints()</b> no longer calculates the minimum X and Y values for creating a sub-mask - this is now
+handled during initialization of Triangle objects to save computation time during blending
+- Removed two more sub-module imports (Qt's <i>QGraphicsScene</i> & <i>QGraphicsView</i>) that were no longer in use
+- Optimized out a line in MorphingApp.py's <b>updateAlpha()</b> and <b>blendImages()</b>
+    - Comment: <i>PyCharm's code inspector may finally relax (for now).</i>
+- Simplified four instances of syntax for defining the interpolated images
+    - np.arange(0, self.leftImage.shape[0], 1) → np.arange(self.leftImage.shape[0])
+    
+## Fixes
+- Corrected an instance where the notification bar stated that the program was blending was in RGB mode instead of RGBA
+
 # Version 0.2.6.1 - (2020-07-27)
 ## Changes
 - Optimizations to Morphing.py's <b>loadTriangles()</b> and <b>getPoints()</b> functions

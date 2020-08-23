@@ -5,6 +5,7 @@
 
 import os
 import copy
+from scipy.ndimage import median_filter
 from scipy.spatial import Delaunay                  # pip install scipy
 from scipy.interpolate import RectBivariateSpline   # pip install scipy
 from matplotlib.path import Path                    # pip install matplotlib
@@ -14,13 +15,6 @@ import itertools
 # Module  level  Variables
 #######################################################
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-
-# np.uint8 [image value assignment], np.float64 [matrix algebra], np.round() [before assigning a float to an int]
-# scipy.interpolate.RectBivariateSpline(), scipy.interpolate.interp2d(), scipy.ndimage.map_coordinates()
-# "Point-in-Polygon" Technique (ImageDraw().polygon)
-# h = np.linalg.solve(A, b)
-# 0 Alpha -> Image 1. 100 Alpha -> Image 2. X Alpha -> (1 - Alpha)Image1 + (Alpha)Image2
 
 def loadTriangles(leftPointFilePath: str, rightPointFilePath: str) -> tuple:
     leftList = []
@@ -58,28 +52,26 @@ class Triangle:
         if vertices.dtype != np.float64:
             raise ValueError("Input argument is not of type float64.")
         self.vertices = vertices
+        self.minX = int(self.vertices[:, 0].min())
+        self.maxX = int(self.vertices[:, 0].max())
+        self.minY = int(self.vertices[:, 1].min())
+        self.maxY = int(self.vertices[:, 1].max())
 
     def getPoints(self):
-        minX = int(self.vertices[:, 0].min())
-        maxX = int(self.vertices[:, 0].max())
-        minY = int(self.vertices[:, 1].min())
-        maxY = int(self.vertices[:, 1].max())
-
-        xList = range(minX, maxX + 1)
-        yList = range(minY, maxY + 1)
+        xList = range(self.minX, self.maxX + 1)
+        yList = range(self.minY, self.maxY + 1)
         a = [xList, yList]
         emptyList = list(itertools.product(*a))
 
         points = np.array(emptyList, np.float64)
         p = Path(self.vertices)
         grid = p.contains_points(points)
-        mask = grid.reshape(maxX - minX + 1, maxY - minY + 1)
+        mask = grid.reshape(self.maxX - self.minX + 1, self.maxY - self.minY + 1)
 
         trueArray = np.where(np.array(mask) == True)
-        coordArray = np.vstack((trueArray[0] + minX, trueArray[1] + minY, np.ones(trueArray[0].shape[0])))
+        coordArray = np.vstack((trueArray[0] + self.minX, trueArray[1] + self.minY, np.ones(trueArray[0].shape[0])))
 
         return coordArray
-
 
 class Morpher:
     def __init__(self, leftImage, leftTriangles, rightImage, rightTriangles):
@@ -105,10 +97,11 @@ class Morpher:
         self.leftTriangles = leftTriangles  # Not of type np.uint8
         self.rightImage = copy.deepcopy(rightImage)
         self.rightTriangles = rightTriangles  # Not of type np.uint8
-        self.leftInterpolation = RectBivariateSpline(np.arange(0, self.leftImage.shape[0], 1), np.arange(0, self.leftImage.shape[1], 1), self.leftImage)
-        self.rightInterpolation = RectBivariateSpline(np.arange(0, self.leftImage.shape[0], 1), np.arange(0, self.leftImage.shape[1], 1), self.rightImage)
+        self.leftInterpolation = RectBivariateSpline(np.arange(self.leftImage.shape[0]), np.arange(self.leftImage.shape[1]), self.leftImage)
+        self.rightInterpolation = RectBivariateSpline(np.arange(self.rightImage.shape[0]), np.arange(self.rightImage.shape[1]), self.rightImage)
 
-    def getImageAtAlpha(self, alpha, mode):
+
+    def getImageAtAlpha(self, alpha, smoothMode):
         for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles):
             self.interpolatePoints(leftTriangle, rightTriangle, alpha)
 
@@ -137,12 +130,15 @@ class Morpher:
         rightH = np.array([[righth[0][0], righth[1][0], righth[2][0]], [righth[3][0], righth[4][0], righth[5][0]], [0, 0, 1]])
         leftinvH = np.linalg.inv(leftH)
         rightinvH = np.linalg.inv(rightH)
-        targetPoints = targetTriangle.getPoints()
+        targetPoints = targetTriangle.getPoints()  # TODO: ~ 17-18% of runtime
 
         leftSourcePoints = np.transpose(np.matmul(leftinvH, targetPoints))
         rightSourcePoints = np.transpose(np.matmul(rightinvH, targetPoints))
         targetPoints = np.transpose(targetPoints)
 
-        for x, y, z in zip(targetPoints, leftSourcePoints, rightSourcePoints):
+        for x, y, z in zip(targetPoints, leftSourcePoints, rightSourcePoints):  # TODO: ~ 53% of runtime
             self.leftImage[int(x[1])][int(x[0])] = self.leftInterpolation(y[1], y[0])
             self.rightImage[int(x[1])][int(x[0])] = self.rightInterpolation(z[1], z[0])
+
+def smoothBlend(blendImage):
+    return median_filter(blendImage, size=2)

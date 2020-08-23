@@ -10,7 +10,7 @@ import time
 from shutil import copyfile
 
 import imageio
-from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog, QGraphicsScene, QGraphicsView
+from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog
 import math
 
 from Morphing import *
@@ -64,7 +64,9 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.rightSize = (0, 0)
         self.transparencySetting = 0  # Flag for user preference on blending alpha layer of .PNG images
         self.blendBoxSetting = 0      # Flag for user preference on full blending the two images
-        self.blendList = []           # List used to store the 21 frames of 0.05 alpha increments for full blending
+        self.smoothBoxSetting = 0     # Flag for user preference on image smoothing during blending
+        self.blendList = []           # List used to store a variable amount of alpha increment frames for full blending
+        self.smoothList = []          # List used to store a variable amount of smoothed alpha increment frames for full blending
         self.redVal = 0
         self.greenVal = 0
         self.blueVal = 0
@@ -73,6 +75,8 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.fullBlendComplete = False
         self.fullBlendValue = 0.05
         self.blendExecuted = False
+        self.blendedImage = None
+        self.smoothedImage = None
 
         # Logic
         self.loadStartButton.clicked.connect(self.loadDataLeft)                 # When the first  load image button is clicked, begins loading logic
@@ -81,6 +85,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.transparencyBox.stateChanged.connect(self.transparencyUpdate)      # When the transparency box is checked or unchecked, changes flags
         self.blendButton.clicked.connect(self.blendImages)                      # When the blend button is clicked, begins blending logic
         self.blendBox.stateChanged.connect(self.blendBoxUpdate)                 # When the blend box is checked or unchecked, changes flags
+        self.smoothingBox.stateChanged.connect(self.smoothBoxUpdate)               # When the smooth box is checked or unchecked, changes flags
         self.blendText.returnPressed.connect(self.blendTextDone)                # When the return key is pressed, removes focus from the input text window
         self.alphaSlider.valueChanged.connect(self.updateAlpha)                 # When the alpha slider is moved, reads and formats the value
         self.triangleRedSlider.valueChanged.connect(self.updateRed)             # When the red   slider is moved, reads the value
@@ -536,6 +541,41 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         else:
             self.notificationLine.setText(" Successfully disabled full blending.")
 
+    # Yet another function for updating user preference; this one pertains to 'image smoothing'
+    # Image smoothing removes hot pixels by using the values of neighboring pixels instead.
+    # (While it is applied during every blend, smoothing is disabled by default and can be visibly toggled at any time)
+    def smoothBoxUpdate(self):
+        self.smoothBoxSetting = int(self.smoothingBox.isChecked())
+        if self.blendExecuted:
+            if self.fullBlendComplete:     # If it's a full blend
+                value_num = ((self.alphaSlider.value() / self.alphaSlider.maximum()) / self.fullBlendValue) * self.fullBlendValue
+                if self.smoothBoxSetting:
+                    temp = self.smoothList[round(value_num / self.fullBlendValue)]
+                else:
+                    temp = self.blendList[round(value_num / self.fullBlendValue)]
+            elif self.smoothBoxSetting:
+                temp = self.smoothedImage
+            else:
+                temp = self.blendedImage
+
+            if len(temp.shape) == 2:
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)))
+            elif temp.shape[2] == 3:
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGB888)))
+            elif temp.shape[2] == 4:
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGBA8888)))
+            else:
+                print("Generic catching error: Something went wrong when loading the image.")
+
+            if self.smoothBoxSetting:
+                self.notificationLine.setText(" Successfully applied image smoothing.")
+            else:
+                self.notificationLine.setText(" Successfully removed image smoothing.")
+        elif self.smoothBoxSetting:
+            self.notificationLine.setText(" Successfully enabled image smoothing.")
+        else:
+            self.notificationLine.setText(" Successfully disabled image smoothing.")
+
     # Function that dynamically updates the list of triangles for the image pair provided, when manually invoked.
     # When a process wants to see triangles update properly, THIS is what needs to be called (not self.triangleUpdate).
     def displayTriangles(self):
@@ -603,16 +643,19 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.notificationLine.setText(" Alpha value changed from " + self.alphaValue.text() + " to " + str(value) + ".")
         self.alphaValue.setText(str(value))
         if self.fullBlendComplete:
-            temp = self.blendList[round(value_num / self.fullBlendValue)]
+            if self.smoothBoxSetting:
+                temp = self.smoothList[round(value_num / self.fullBlendValue)]
+            else:
+                temp = self.blendList[round(value_num / self.fullBlendValue)]
+
             if len(temp.shape) == 2:
-                blendImage = QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)))
             elif temp.shape[2] == 3:
-                blendImage = QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGB888)
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGB888)))
             elif temp.shape[2] == 4:
-                blendImage = QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGBA8888)
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGBA8888)))
             else:
                 print("Generic catching error: Something went wrong when loading the image.")
-            self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(blendImage))
 
     # Red/Green/Blue slider functions for the triangle widget in order to select custom colors
     def updateRed(self):
@@ -640,6 +683,8 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     #       It almost feels like data is just... missing. So how do I determine what is missing???
     def blendImages(self):
         self.blendButton.setEnabled(0)
+        self.smoothingBox.setEnabled(0)
+        self.blendBox.setEnabled(0)
         triangleTuple = loadTriangles(self.startingTextCorePath, self.endingTextCorePath)
         leftImageRaw = imageio.imread(self.startingImagePath)
         rightImageRaw = imageio.imread(self.endingImagePath)
@@ -658,20 +703,32 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             if self.blendBoxSetting:
                 self.verifyBlendValue()
                 self.blendList = []
+                self.smoothList = []
                 x = 0
                 while x <= self.alphaSlider.maximum():
+                    self.notificationLine.setText(" Calculating RGB (.jpg) morph... {Frame " + str(x + 1) + "/" + str(self.alphaSlider.maximum() + 1) + "}")
+                    self.repaint()
                     if x == self.alphaSlider.maximum():
-                        self.blendList.append(grayScale.getImageAtAlpha(1.0, 0))
+                        tempImage = grayScale.getImageAtAlpha(1.0, self.smoothBoxSetting)
                     else:
-                        self.blendList.append(grayScale.getImageAtAlpha(x * self.fullBlendValue, 0))
+                        tempImage = grayScale.getImageAtAlpha(x * self.fullBlendValue, self.smoothBoxSetting)
+                    self.blendList.append(tempImage)
+                    self.smoothList.append(smoothBlend(tempImage))
                     x += 1
                 self.fullBlendComplete = True
-                temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
-                blendImage = QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)
+                if self.smoothBoxSetting:
+                    temp = self.smoothList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
+                else:
+                    temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)))
             else:
                 self.fullBlendComplete = False
-                grayscaleBlend = grayScale.getImageAtAlpha(float(self.alphaValue.text()), 0)
-                blendImage = QtGui.QImage(grayscaleBlend.data, grayscaleBlend.shape[1], grayscaleBlend.shape[0], QtGui.QImage.Format_Grayscale8)
+                self.blendedImage = grayScale.getImageAtAlpha(float(self.alphaValue.text()), self.smoothBoxSetting)
+                self.smoothedImage = smoothBlend(self.blendedImage)
+                if self.smoothBoxSetting:
+                    self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.smoothedImage.data, self.smoothedImage.shape[1], self.smoothedImage.shape[0], QtGui.QImage.Format_Grayscale8)))
+                else:
+                    self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], QtGui.QImage.Format_Grayscale8)))
             self.notificationLine.setText(" Morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
         elif not self.leftPNG or not self.rightPNG or not self.transparencySetting or (leftImageRaw.shape[2] == 3 and rightImageRaw.shape[2] == 3):  # if color, no alpha (.JPG)
             self.notificationLine.setText(" Calculating RGB (.jpg) morph...")
@@ -683,45 +740,54 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             start_time = time.time()
             if self.blendBoxSetting:
                 self.blendList = []
+                self.smoothList = []
                 counter = 0
                 while counter <= self.alphaSlider.maximum():
+                    self.notificationLine.setText(" Calculating RGB (.jpg) morph... {Frame " + str(counter + 1) + "/" + str(self.alphaSlider.maximum() + 1) + "}")
+                    self.repaint()
                     if counter == self.alphaSlider.maximum():
                         alphaVal = 1.0
                     else:
                         alphaVal = counter * self.fullBlendValue
                     pool = multiprocessing.Pool(4)
-                    results = [pool.apply_async(colorScaleR.getImageAtAlpha, (alphaVal, 1)),
-                               pool.apply_async(colorScaleG.getImageAtAlpha, (alphaVal, 1)),
-                               pool.apply_async(colorScaleB.getImageAtAlpha, (alphaVal, 1))]
+                    results = [pool.apply_async(colorScaleR.getImageAtAlpha, (alphaVal, self.smoothBoxSetting)),
+                               pool.apply_async(colorScaleG.getImageAtAlpha, (alphaVal, self.smoothBoxSetting)),
+                               pool.apply_async(colorScaleB.getImageAtAlpha, (alphaVal, self.smoothBoxSetting))]
                     blendR = results[0].get()
                     blendG = results[1].get()
                     blendB = results[2].get()
                     pool.close()
                     pool.terminate()
                     pool.join()
-
                     self.blendList.append(np.dstack((blendR, blendG, blendB)))
+                    self.smoothList.append(np.dstack((smoothBlend(blendR), smoothBlend(blendG), smoothBlend(blendB))))
                     counter += 1
                 self.fullBlendComplete = True
-                temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
-                blendImage = QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGB888)
+                if self.smoothBoxSetting:
+                    temp = self.smoothList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
+                else:
+                    temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGB888)))
                 self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
             else:
                 self.fullBlendComplete = False
                 pool = multiprocessing.Pool(4)
-                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
-                           pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
-                           pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()), 1))]
+                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
+                           pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
+                           pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting))]
                 blendR = results[0].get()
                 blendG = results[1].get()
                 blendB = results[2].get()
                 pool.close()
                 pool.terminate()
                 pool.join()
-
+                self.blendedImage = np.dstack((blendR, blendG, blendB))
+                self.smoothedImage = np.dstack((smoothBlend(blendR), smoothBlend(blendG), smoothBlend(blendB)))
+                if self.smoothBoxSetting:
+                    self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.smoothedImage.data, self.smoothedImage.shape[1], self.smoothedImage.shape[0], QtGui.QImage.Format_RGB888)))
+                else:
+                    self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], QtGui.QImage.Format_RGB888)))
                 self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
-                blendRGB = np.dstack((blendR, blendG, blendB))
-                blendImage = QtGui.QImage(blendRGB.data, blendRGB.shape[1], blendRGB.shape[0], QtGui.QImage.Format_RGB888)
         elif self.leftPNG and self.rightPNG and self.transparencySetting and leftImageRaw.shape[2] == 4 and rightImageRaw.shape[2] == 4:   # if color, alpha (.PNG)
             self.notificationLine.setText(" Calculating RGBA (.png) morph...")
             self.repaint()
@@ -733,17 +799,20 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             start_time = time.time()
             if self.blendBoxSetting:
                 self.blendList = []
+                self.smoothList = []
                 counter = 0
                 while counter <= self.alphaSlider.maximum():
+                    self.notificationLine.setText(" Calculating RGBA (.jpg) morph... {Frame " + str(counter + 1) + "/" + str(self.alphaSlider.maximum() + 1) + "}")
+                    self.repaint()
                     if counter == self.alphaSlider.maximum():
                         alphaVal = 1.0
                     else:
                         alphaVal = counter * self.fullBlendValue
                     pool = multiprocessing.Pool(4)
-                    results = [pool.apply_async(colorScaleR.getImageAtAlpha, (alphaVal, 1)),
-                               pool.apply_async(colorScaleG.getImageAtAlpha, (alphaVal, 1)),
-                               pool.apply_async(colorScaleB.getImageAtAlpha, (alphaVal, 1)),
-                               pool.apply_async(colorScaleA.getImageAtAlpha, (alphaVal, 1))]
+                    results = [pool.apply_async(colorScaleR.getImageAtAlpha, (alphaVal, self.smoothBoxSetting)),
+                               pool.apply_async(colorScaleG.getImageAtAlpha, (alphaVal, self.smoothBoxSetting)),
+                               pool.apply_async(colorScaleB.getImageAtAlpha, (alphaVal, self.smoothBoxSetting)),
+                               pool.apply_async(colorScaleA.getImageAtAlpha, (alphaVal, self.smoothBoxSetting))]
                     blendR = results[0].get()
                     blendG = results[1].get()
                     blendB = results[2].get()
@@ -753,18 +822,22 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     pool.join()
 
                     self.blendList.append(np.dstack((blendR, blendG, blendB, blendA)))
+                    self.smoothList.append(np.dstack((smoothBlend(blendR), smoothBlend(blendG), smoothBlend(blendB), smoothBlend(blendA))))
                     counter += 1
                 self.fullBlendComplete = True
-                temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
-                blendImage = QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGBA8888)
+                if self.smoothBoxSetting:
+                    temp = self.smoothList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
+                else:
+                    temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGBA8888)))
                 self.notificationLine.setText(" RGBA morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
             else:
                 self.fullBlendComplete = False
                 pool = multiprocessing.Pool(4)
-                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
-                           pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
-                           pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()), 1)),
-                           pool.apply_async(colorScaleA.getImageAtAlpha, (float(self.alphaValue.text()), 1))]
+                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
+                           pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
+                           pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
+                           pool.apply_async(colorScaleA.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting))]
                 blendR = results[0].get()
                 blendG = results[1].get()
                 blendB = results[2].get()
@@ -772,18 +845,22 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 pool.close()
                 pool.terminate()
                 pool.join()
-
+                self.blendedImage = np.dstack((blendR, blendG, blendB, blendA))
+                self.smoothedImage = np.dstack((smoothBlend(blendR), smoothBlend(blendG), smoothBlend(blendB), smoothBlend(blendA)))
+                if self.smoothBoxSetting:
+                    self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.smoothedImage.data, self.smoothedImage.shape[1], self.smoothedImage.shape[0], QtGui.QImage.Format_RGBA8888)))
+                else:
+                    self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], QtGui.QImage.Format_RGBA8888)))
                 self.notificationLine.setText(" RGBA morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
-                blendRGBA = np.dstack((blendR, blendG, blendB, blendA))
-                blendImage = QtGui.QImage(blendRGBA.data, blendRGBA.shape[1], blendRGBA.shape[0], QtGui.QImage.Format_RGBA8888)
         else:
             self.notificationLine.setText(" Generic Catching Error: Check image file types..")
             errorFlag = True
         if not errorFlag:
             self.blendExecuted = True
-            self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(blendImage))
             self.blendingImage.setScaledContents(1)
             self.blendButton.setEnabled(1)
+        self.smoothingBox.setEnabled(1)
+        self.blendBox.setEnabled(1)
 
     def loadDataLeft(self):
         filePath, _ = QFileDialog.getOpenFileName(self, caption='Open Starting Image File ...', filter="Images (*.png *.jpg)")
@@ -824,7 +901,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         # If there is already a text file at the location of the selected image, the program assumes that it is what
         # the user intends to start with and moves it to the desired path for future manipulation.
         # Otherwise, the program creates an empty file instead.
-        # TODO: Have program automatically create 'Images_Points' folder if missing
         if os.path.isfile(self.startingTextPath):
             copyfile(self.startingTextPath, self.startingTextCorePath)
         else:
