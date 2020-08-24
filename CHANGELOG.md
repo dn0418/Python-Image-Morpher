@@ -1,3 +1,22 @@
+# Version 0.2.8.0 - (2020-08-24)
+## Known Bugs
+- The GUI can sometimes become unresponsive during morphing calculations
+    - QtCore.QCoreApplication.processEvents() is a potential workaround but currently produces buggy results
+    
+## Added
+- <b>Morphed Image Saving</b>
+    - Normal blends can now be saved as their respective image types; full blends can now be saved as dynamic GIFs
+        - Generated GIFs are subject to the user's preference for the amount of time (default: 100 ms) given to each frame
+        
+## Changes
+- To accommodate this update, the following elements in MorphingGUI.ui and MorphingGUI.py have been changed:
+    - Added a "Save Image(s)" button alongside a smaller frame time textbox
+        - A fairly air-tight Qt mask is used to restrict letter and symbol input - format is "[0-9][0-9][0-9] ms"
+        - The program handles other invalid inputs (000, no input)
+    - Minimum size of the main window has changed from <b>(878 x 797)</b> to <b>(878 x 850)</b>
+- To accommodate this update, MorphingApp.py's <b>verifyBlendValue()</b> has been changed to <b>verifyValue(str)</b>
+    - This new function is now used for checking both full blend and gif values
+
 # Version 0.2.7.0 - (2020-08-22)
 ## Known Bugs
 - The GUI can sometimes become unresponsive during morphing calculations
