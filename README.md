@@ -15,7 +15,7 @@ This project began in Spring 2019 (detailed in <b>readme_general.pdf</b>, <b>rea
  if it does not already, later releases are likely to support Mac and Linux.
 
 <p align="center">
-  <img width="879" height="881" src="https://i.imgur.com/1yO5slA.png"><br>
+  <img width="650" height="651" src="https://i.imgur.com/1yO5slA.png"><br>
 </p>
 
 ## Installation:
