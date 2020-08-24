@@ -19,7 +19,7 @@ This project began in Spring 2019 (detailed in <b>readme_general.pdf</b>, <b>rea
 </p>
 
 <p align="center">
-    <img src="https://media3.giphy.com/media/ibAOyLgNhxnWHuKvZn/giphy.gif"><br>
+    ![Morphing GIF](https://media3.giphy.com/media/ibAOyLgNhxnWHuKvZn/giphy.gif)
 </p>
 
 ## Installation:
