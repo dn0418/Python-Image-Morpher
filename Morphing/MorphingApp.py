@@ -74,6 +74,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.changeFlag = False
         self.fullBlendComplete = False
         self.fullBlendValue = 0.05
+        self.gifValue = 100
         self.blendExecuted = False
         self.blendedImage = None
         self.smoothedImage = None
@@ -85,8 +86,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.transparencyBox.stateChanged.connect(self.transparencyUpdate)      # When the transparency box is checked or unchecked, changes flags
         self.blendButton.clicked.connect(self.blendImages)                      # When the blend button is clicked, begins blending logic
         self.blendBox.stateChanged.connect(self.blendBoxUpdate)                 # When the blend box is checked or unchecked, changes flags
-        self.smoothingBox.stateChanged.connect(self.smoothBoxUpdate)               # When the smooth box is checked or unchecked, changes flags
+        self.smoothingBox.stateChanged.connect(self.smoothBoxUpdate)            # When the smooth box is checked or unchecked, changes flags
         self.blendText.returnPressed.connect(self.blendTextDone)                # When the return key is pressed, removes focus from the input text window
+        self.saveButton.clicked.connect(self.saveImages)                        # When the save button is clicked, begins image saving logic
+        self.gifText.returnPressed.connect(self.gifTextDone)
         self.alphaSlider.valueChanged.connect(self.updateAlpha)                 # When the alpha slider is moved, reads and formats the value
         self.triangleRedSlider.valueChanged.connect(self.updateRed)             # When the red   slider is moved, reads the value
         self.triangleGreenSlider.valueChanged.connect(self.updateGreen)         # When the green slider is moved, reads the value
@@ -110,7 +113,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.alphaSlider.setTickInterval(1)
             self.resetSliderButton.setEnabled(1)
 
-    # QoL function that removes focus from the input text window when the user presses Enter.
+    # QoL function that removes focus from the full blend text window when the user presses Enter.
     # Additionally verifies the user's specified full blending value.
     def blendTextDone(self):
         self.fullBlendComplete = False
@@ -119,19 +122,40 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.blendText.setText(str(self.fullBlendValue))
             self.refreshAlphaSlider()
         else:
-            self.verifyBlendValue()
+            self.verifyValue("blend")
+        self.notificationLine.setFocus()
+
+    # QoL function that removes focus from the gif text window when the user presses Enter.
+    # Additionally verifies the user's specified gif frame time value.
+    def gifTextDone(self):
+        # Obviously there is probably a more professional way of writing this conditional  but for now, it's fine.
+        if self.gifText.text() == ' ms' or self.gifText.text() == '  ms' or self.gifText.text() == '   ms' or self.gifText.text() == '    ms':
+            self.gifValue = 100
+            self.gifText.setText("100 ms")
+        else:
+            self.verifyValue("gif")
         self.notificationLine.setFocus()
 
     # Macro function to save unnecessary repetitions of the same few lines of code.
-    # Essentially corrects invalid values that the user may enter for full blending and rounds to the best number
-    # that's closest to what the user specified in the input box.
+    # Essentially corrects invalid values that the user may enter for full blending and gif frame times..
+    # then rounds to the best number that's closest to what the user specified in the input box.
     # (This is required, since Qt can't restrict all bad forms of input.)
-    def verifyBlendValue(self):
-        self.fullBlendComplete = False
-        self.fullBlendValue = min(float(self.blendText.text()), 0.25)
-        self.fullBlendValue = max(self.fullBlendValue, 0.001)
-        self.blendText.setText(str(self.fullBlendValue))
-        self.refreshAlphaSlider()
+    def verifyValue(self, param: str):
+        if param == "blend":
+            self.fullBlendComplete = False
+            self.fullBlendValue = min(float(self.blendText.text()), 0.25)
+            self.fullBlendValue = max(self.fullBlendValue, 0.001)
+            self.blendText.setText(str(self.fullBlendValue))
+            self.refreshAlphaSlider()
+        elif param == "gif":
+            self.gifValue = min(int(self.gifText.text().replace(' ms', '')), 999)
+            self.gifValue = int(max(self.gifValue, 000))
+            if len(str(self.gifValue)) == 1:
+                self.gifText.setText("00" + str(self.gifValue) + " ms")
+            elif len(str(self.gifValue)) == 2:
+                self.gifText.setText("0" + str(self.gifValue) + " ms")
+            else:
+                self.gifText.setText(str(self.gifValue) + " ms")
 
     # Workaround function that prevents unpredictable behavior with the triangle box
     def updateTriangleStatus(self):
@@ -699,11 +723,11 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.notificationLine.setText(" Calculating grayscale morph...")
             self.repaint()
             grayScale = Morpher(leftImageARR, triangleTuple[0], rightImageARR, triangleTuple[1])
+            self.blendList = []
+            self.smoothList = []
             start_time = time.time()
             if self.blendBoxSetting:
-                self.verifyBlendValue()
-                self.blendList = []
-                self.smoothList = []
+                self.verifyValue("blend")
                 x = 0
                 while x <= self.alphaSlider.maximum():
                     self.notificationLine.setText(" Calculating RGB (.jpg) morph... {Frame " + str(x + 1) + "/" + str(self.alphaSlider.maximum() + 1) + "}")
@@ -716,6 +740,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.smoothList.append(smoothBlend(tempImage))
                     x += 1
                 self.fullBlendComplete = True
+                self.gifText.setEnabled(1)
                 if self.smoothBoxSetting:
                     temp = self.smoothList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
                 else:
@@ -723,6 +748,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)))
             else:
                 self.fullBlendComplete = False
+                self.gifText.setEnabled(0)
                 self.blendedImage = grayScale.getImageAtAlpha(float(self.alphaValue.text()), self.smoothBoxSetting)
                 self.smoothedImage = smoothBlend(self.blendedImage)
                 if self.smoothBoxSetting:
@@ -736,11 +762,11 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             colorScaleR = Morpher(leftImageARR[:, :, 0], triangleTuple[0], rightImageARR[:, :, 0], triangleTuple[1])
             colorScaleG = Morpher(leftImageARR[:, :, 1], triangleTuple[0], rightImageARR[:, :, 1], triangleTuple[1])
             colorScaleB = Morpher(leftImageARR[:, :, 2], triangleTuple[0], rightImageARR[:, :, 2], triangleTuple[1])
-
+            self.blendList = []
+            self.smoothList = []
             start_time = time.time()
             if self.blendBoxSetting:
-                self.blendList = []
-                self.smoothList = []
+
                 counter = 0
                 while counter <= self.alphaSlider.maximum():
                     self.notificationLine.setText(" Calculating RGB (.jpg) morph... {Frame " + str(counter + 1) + "/" + str(self.alphaSlider.maximum() + 1) + "}")
@@ -763,6 +789,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.smoothList.append(np.dstack((smoothBlend(blendR), smoothBlend(blendG), smoothBlend(blendB))))
                     counter += 1
                 self.fullBlendComplete = True
+                self.gifText.setEnabled(1)
                 if self.smoothBoxSetting:
                     temp = self.smoothList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
                 else:
@@ -771,6 +798,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
             else:
                 self.fullBlendComplete = False
+                self.gifText.setEnabled(0)
                 pool = multiprocessing.Pool(4)
                 results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
                            pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
@@ -795,11 +823,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             colorScaleG = Morpher(leftImageARR[:, :, 1], triangleTuple[0], rightImageARR[:, :, 1], triangleTuple[1])
             colorScaleB = Morpher(leftImageARR[:, :, 2], triangleTuple[0], rightImageARR[:, :, 2], triangleTuple[1])
             colorScaleA = Morpher(leftImageARR[:, :, 3], triangleTuple[0], rightImageARR[:, :, 3], triangleTuple[1])
-
+            self.blendList = []
+            self.smoothList = []
             start_time = time.time()
             if self.blendBoxSetting:
-                self.blendList = []
-                self.smoothList = []
                 counter = 0
                 while counter <= self.alphaSlider.maximum():
                     self.notificationLine.setText(" Calculating RGBA (.jpg) morph... {Frame " + str(counter + 1) + "/" + str(self.alphaSlider.maximum() + 1) + "}")
@@ -825,6 +852,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.smoothList.append(np.dstack((smoothBlend(blendR), smoothBlend(blendG), smoothBlend(blendB), smoothBlend(blendA))))
                     counter += 1
                 self.fullBlendComplete = True
+                self.gifText.setEnabled(1)
                 if self.smoothBoxSetting:
                     temp = self.smoothList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
                 else:
@@ -833,6 +861,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 self.notificationLine.setText(" RGBA morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
             else:
                 self.fullBlendComplete = False
+                self.gifText.setEnabled(0)
                 pool = multiprocessing.Pool(4)
                 results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
                            pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
@@ -859,8 +888,52 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.blendExecuted = True
             self.blendingImage.setScaledContents(1)
             self.blendButton.setEnabled(1)
+            self.saveButton.setEnabled(1)
         self.smoothingBox.setEnabled(1)
         self.blendBox.setEnabled(1)
+
+    # Function that handles behavior when the user wishes to save the blended image(s)
+    # Currently designed to handle generation of the following:
+    #     Single Blend → Grayscale .jpg/.jpeg
+    #     Single Blend → Color     .jpg/.jpeg/.png
+    #     Full Blend → Grayscale/Color .gif (default frame time: 100 ms)
+    def saveImages(self):
+        if self.blendExecuted:
+            filepath = ""
+            if self.fullBlendComplete and self.blendList != []:  # create GIF
+                self.gifTextDone()
+                filepath, _ = QFileDialog.getSaveFileName(self, 'Save the gif as ...', "Morph.gif", "Images (*.gif)")
+
+                if filepath == "":
+                    return
+
+                if self.smoothBoxSetting:
+                    temp = self.smoothList
+                    for frame in reversed(self.smoothList):
+                        temp.append(frame)
+                    imageio.mimsave(filepath, temp, duration=float(self.gifValue / 1000))
+                else:
+                    temp = self.blendList
+                    for frame in reversed(self.blendList):
+                        temp.append(frame)
+                    imageio.mimsave(filepath, temp, duration=float(self.gifValue / 1000))
+            else:  # create image
+                if len(self.blendedImage.shape) < 3:
+                    filepath, _ = QFileDialog.getSaveFileName(self, 'Save the image as ...', "Morph.jpg", "Images (*.jpg)")
+                elif self.blendedImage.shape[2] == 3:
+                    filepath, _ = QFileDialog.getSaveFileName(self, 'Save the image as ...', "Morph.jpg", "Images (*.jpg)")
+                elif self.blendedImage.shape[2] == 4:
+                    filepath, _ = QFileDialog.getSaveFileName(self, 'Save the image as ...', "Morph.png", "Images (*.png)")
+
+                if filepath == "":
+                    return
+
+                if self.smoothBoxSetting:
+                    imageio.imwrite(filepath, self.smoothedImage)
+                else:
+                    imageio.imwrite(filepath, self.blendedImage)
+        else:
+            self.notificationLine.setText(" Generic Catching Error: Image(s) can't be saved..")
 
     def loadDataLeft(self):
         filePath, _ = QFileDialog.getOpenFileName(self, caption='Open Starting Image File ...', filter="Images (*.png *.jpg)")
