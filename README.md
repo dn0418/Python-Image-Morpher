@@ -18,9 +18,7 @@ This project began in Spring 2019 (detailed in <b>readme_general.pdf</b>, <b>rea
   <img width="650" height="651" src="https://i.imgur.com/1yO5slA.png"><br>
 </p>
 
-<p align="center">
-    ![Morphing GIF](https://media3.giphy.com/media/ibAOyLgNhxnWHuKvZn/giphy.gif)
-</p>
+![Morphing GIF](https://media3.giphy.com/media/ibAOyLgNhxnWHuKvZn/giphy.gif)
 
 ## Installation:
 This program has dependencies that do not come packaged with Python 3.8. For each module below that your machine does not have installed, enter the respective command using the terminal supplied by Windows or your choice of IDE (such as PyCharm).
