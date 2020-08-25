@@ -149,7 +149,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.refreshAlphaSlider()
         elif param == "gif":
             self.gifValue = min(int(self.gifText.text().replace(' ms', '')), 999)
-            self.gifValue = int(max(self.gifValue, 000))
+            self.gifValue = int(max(self.gifValue, 1))
             if len(str(self.gifValue)) == 1:
                 self.gifText.setText("00" + str(self.gifValue) + " ms")
             elif len(str(self.gifValue)) == 2:
