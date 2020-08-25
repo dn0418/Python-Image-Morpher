@@ -1,3 +1,7 @@
+# Version 0.2.8.1 - (2020-08-25)
+## Fixes
+- Hotfixed a bug where <b>verifyValue()</b> for the frame time textbox was accepting 0 as a valid number
+
 # Version 0.2.8.0 - (2020-08-24)
 ## Known Bugs
 - The GUI can sometimes become unresponsive during morphing calculations
