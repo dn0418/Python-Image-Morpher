@@ -1,3 +1,35 @@
+# Version 0.2.8.2 - (2020-08-26)
+## Changes
+- Support for morphing two images of different sizes, while initially left up in the air as a potential feature, is no longer being considered
+    - Consequently, the variables <b>self.leftScalar</b> and <b>self.rightScalar</b> have been converted to <b>self.imageScalar</b>
+        - Since only one scalar is calculated now, <b>resizeEvent()</b> has received a performance boost as a result
+    - The program will now warn the user (via the notification bar) when they load two images of different sizes
+        - Comment: <i> I'm considering adding two buttons to the GUI that resize the left image to the right image and vice versa.</i>
+- Memory Optimization: Removed <b>all</b> instances of the variables used to:
+    - Flag when the GUI was being resized: <b>self.resizeFlag</b>
+    - Flag when left/right images were loaded: <b>self.leftOn</b>, <b>self.rightOn</b>
+    - Flag whether left/right images were PNGs: <b>self.leftPNG</b>, <b>self.rightPNG</b>, <b>leftTypeRegex</b>, <b>rightTypeRegex</b>
+    - Flag whether the smoothing box was checked: <b>self.smoothBoxSetting</b>
+    - Flag whether the transparency box was checked: <b>self.transparencySetting</b>
+    - Flag whether the full blend box was checked: <b>self.blendBoxSetting</b>
+    - Flag whether the user has performed a morph in the current session: <b>self.blendExecuted</b>
+    - Store triangle color slider values: <b>self.redVal</b>, <b>self.blueVal</b>, <b>self.greenVal</b>
+    - Store an ADDITIONAL COPY (!!!) of each image's chosen points: <b>self.startingText</b>, <b>self.endingText</b>
+        - Comment: <i> This was legacy code, for sure, but it took me a bit to even understand that these LISTS (not boolean flags.. lists!) 
+        existed purely to indicate whether each input image's text file was empty or not. The memory cost for implementing that check this way was 
+        laughable, so the program now uses "if not os.stat(filename).st_size:" instead. Much better!</i>
+- Variables declared during <b>MorphingApp.py</b>'s initialization have been re-arranged by type (for source code clarity)
+    - Additionally, detailed comments have now been given to all variables (and Qt signals) found under initialization (for source code clarity)
+
+## Fixes
+- Fixed a long-standing bug where .jpg blends could sometimes appear in the GUI to be wildly distorted and - occasionally - grayscale
+    - Comment: <i> When saved, these images were perfectly fine.. the problem was coming from a Qt pixmap conversion error.
+    A BPL (bytes per line) parameter has been added to .jpg QImage construction syntax to resolve the issue.</i>
+- <b>autoCorner()</b> now checks that <i>neither</i> image contains each corner point before adding it
+    - Comment: <i> Originally, the function was only checking that the left image didn't have each particular corner point; in retrospect, 
+    this could potentially cause problems if the right image DID have that corner point (as this would then lead to duplication for the right image).</i>
+- Removed a conflicting legacy initialization of self.leftSize and self.rightSize in <b>MorphingApp.py</b>
+    
 # Version 0.2.8.1 - (2020-08-25)
 ## Fixes
 - Hotfixed a bug where <b>verifyValue()</b> for the frame time textbox was accepting 0 as a valid number

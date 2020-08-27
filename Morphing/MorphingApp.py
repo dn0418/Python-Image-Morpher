@@ -5,6 +5,7 @@
 
 import multiprocessing
 import sys
+import os
 import re
 import time
 from shutil import copyfile
@@ -29,55 +30,43 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.setWindowIcon(QtGui.QIcon("./Morphing.ico"))
 
         # Defaults on Startup
-        self.chosen_left_points = []
-        self.chosen_right_points = []
-        self.added_left_points = []
-        self.added_right_points = []
-        self.confirmed_left_points = []
-        self.confirmed_right_points = []
-        self.confirmed_left_points_history = []   # Logging for CTRL + Y (REDO)
-        self.confirmed_right_points_history = []  # Logging for CTRL + Y (REDO)
-        self.startingImagePath = ''
-        self.endingImagePath = ''
-        self.startingTextPath = ''
-        self.startingTextCorePath = ''
-        self.endingTextPath = ''
-        self.endingTextCorePath = ''
-        self.startingText = []
-        self.endingText = []
-        self.leftPNG = 0
-        self.rightPNG = 0
-        self.leftOn = 0
-        self.rightOn = 0
-        self.currentWindow = 0
-        self.enableDeletion = 0
-        self.leftSize = 0
-        self.rightSize = 0
-        self.persistFlag = 0
-        self.triangleUpdate = 0
-        self.triangleUpdatePref = 0
-        self.leftPolyList = []
-        self.rightPolyList = []
-        self.leftScalar = 0
-        self.rightScalar = 0
-        self.leftSize = (0, 0)
-        self.rightSize = (0, 0)
-        self.transparencySetting = 0  # Flag for user preference on blending alpha layer of .PNG images
-        self.blendBoxSetting = 0      # Flag for user preference on full blending the two images
-        self.smoothBoxSetting = 0     # Flag for user preference on image smoothing during blending
-        self.blendList = []           # List used to store a variable amount of alpha increment frames for full blending
-        self.smoothList = []          # List used to store a variable amount of smoothed alpha increment frames for full blending
-        self.redVal = 0
-        self.greenVal = 0
-        self.blueVal = 0
-        self.resizeFlag = False
-        self.changeFlag = False
-        self.fullBlendComplete = False
-        self.fullBlendValue = 0.05
-        self.gifValue = 100
-        self.blendExecuted = False
-        self.blendedImage = None
-        self.smoothedImage = None
+        self.chosen_left_points = []                                            # List used to store points confirmed in previous sessions (LEFT)
+        self.chosen_right_points = []                                           # List used to store points confirmed in previous sessions (RIGHT)
+        self.added_left_points = []                                             # List used to store temporary points added in current session (LEFT)
+        self.added_right_points = []                                            # List used to store temporary points added in current session (RIGHT)
+        self.confirmed_left_points = []                                         # List used to store existing points confirmed in current session (LEFT)
+        self.confirmed_right_points = []                                        # List used to store existing points confirmed in current session (RIGHT)
+        self.confirmed_left_points_history = []                                 # List used to log all points confirmed during this session for CTRL + Y (LEFT)
+        self.confirmed_right_points_history = []                                # List used to log all points confirmed during this session for CTRL + Y (RIGHT)
+        self.leftPolyList = []                                                  # List used to store delaunay triangles (LEFT)
+        self.rightPolyList = []                                                 # List used to store delaunay triangles (RIGHT)
+        self.blendList = []                                                     # List used to store a variable amount of alpha increment frames for full blending
+        self.smoothList = []                                                    # List used to store a variable amount of smoothed alpha increment frames for full blending
+
+        self.startingImagePath = ''                                             # String used to store file path to the left image
+        self.endingImagePath = ''                                               # String used to store file path to the right image
+        self.startingTextPath = ''                                              # String used to store file path to the left image's text file, if it was pre-made (LEGACY)
+        self.endingTextPath = ''                                                # String used to store file path to the right image's text file, if it was pre-made (LEGACY)
+        self.startingTextCorePath = ''                                          # String used to store local file path to the left image's corresponding text file
+        self.endingTextCorePath = ''                                            # String used to store local file path to the right image's corresponding text file
+
+        self.currentWindow = 0                                                  # Flag used to indicate which image will accept the next mouse click for creating points
+        self.enableDeletion = 0                                                 # Flag used to indicate whether the most recently created point can be deleted with Backspace
+        self.persistFlag = 0                                                    # Flag used to indicate how points are created during a mouse click event (LEGACY)
+        self.triangleUpdate = 0                                                 # Flag used to indicate whether triangles need to be repainted (or removed) in the next paint event
+        self.triangleUpdatePref = 0                                             # Flag used to remember whether the user wants to display triangles (in the case that they are forced off)
+        self.imageScalar = 0                                                    # Value used to scale created points to where they visually line up with the original images
+        self.fullBlendValue = 0.05                                              # Value used for determining the spacing between alpha increments when full blending
+        self.gifValue = 100                                                     # Value used for determining the amount of time allotted to each frame of a created .gif file
+
+        self.leftSize = (0, 0)                                                  # Tuple used to store the width and height of the left image
+        self.rightSize = (0, 0)                                                 # Tuple used to store the width and height of the right image
+
+        self.fullBlendComplete = False                                          # Flag used to indicate whether a full blend is displayable
+        self.changeFlag = False                                                 # Flag used to indicate when the program should repaint (because Qt loves to very frequently call paint events)
+
+        self.blendedImage = None                                                # Pre-made reference to a variable that is used to store a singular blended image
+        self.smoothedImage = None                                               # Pre-made reference to a variable that is used to store a singular smoothed image
 
         # Logic
         self.loadStartButton.clicked.connect(self.loadDataLeft)                 # When the first  load image button is clicked, begins loading logic
@@ -89,7 +78,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.smoothingBox.stateChanged.connect(self.smoothBoxUpdate)            # When the smooth box is checked or unchecked, changes flags
         self.blendText.returnPressed.connect(self.blendTextDone)                # When the return key is pressed, removes focus from the input text window
         self.saveButton.clicked.connect(self.saveImages)                        # When the save button is clicked, begins image saving logic
-        self.gifText.returnPressed.connect(self.gifTextDone)
+        self.gifText.returnPressed.connect(self.gifTextDone)                    # When the return key is pressed, removes focus from the input text window
         self.alphaSlider.valueChanged.connect(self.updateAlpha)                 # When the alpha slider is moved, reads and formats the value
         self.triangleRedSlider.valueChanged.connect(self.updateRed)             # When the red   slider is moved, reads the value
         self.triangleGreenSlider.valueChanged.connect(self.updateGreen)         # When the green slider is moved, reads the value
@@ -191,10 +180,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     # Can not be invoked while a point is pending (in order to prevent exploits).
     # Written to dynamically work with triangles without any exploits.
     def autoCorner(self):
-        leftMaxX = min(math.ceil((self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x() - 1) * self.leftScalar[0]), self.leftSize[0] - 1)
-        leftMaxY = min(math.ceil((self.endingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y() - 1) * self.leftScalar[1]), self.leftSize[1] - 1)
-        rightMaxX = min(math.ceil((self.endingImage.geometry().topRight().x() - self.endingImage.geometry().topLeft().x() - 1) * self.rightScalar[0]), self.rightSize[0] - 1)
-        rightMaxY = min(math.ceil((self.endingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y() - 1) * self.rightScalar[1]), self.rightSize[1] - 1)
+        leftMaxX = min(math.ceil((self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x() - 1) * self.imageScalar[0]), self.leftSize[0] - 1)
+        leftMaxY = min(math.ceil((self.endingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y() - 1) * self.imageScalar[1]), self.leftSize[1] - 1)
+        rightMaxX = min(math.ceil((self.endingImage.geometry().topRight().x() - self.endingImage.geometry().topLeft().x() - 1) * self.imageScalar[0]), self.rightSize[0] - 1)
+        rightMaxY = min(math.ceil((self.endingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y() - 1) * self.imageScalar[1]), self.rightSize[1] - 1)
 
         tempLeft = [QtCore.QPoint(0, 0), QtCore.QPoint(0, leftMaxY), QtCore.QPoint(leftMaxX, 0), QtCore.QPoint(leftMaxX, leftMaxY)]
         tempRight = [QtCore.QPoint(0, 0), QtCore.QPoint(0, rightMaxY), QtCore.QPoint(rightMaxX, 0), QtCore.QPoint(rightMaxX, rightMaxY)]
@@ -203,7 +192,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         i = 0
         counter = 0
         while i < 4:
-            if tempLeft[i] not in self.confirmed_left_points and tempLeft[i] not in self.chosen_left_points:
+            if tempLeft[i] not in self.confirmed_left_points and tempLeft[i] not in self.chosen_left_points and tempRight[i] not in self.confirmed_right_points and tempRight[i] not in self.chosen_right_points:
                 counter += 1
                 self.confirmed_left_points.append(tempLeft[i])
                 self.confirmed_left_points_history.append(tempLeft[i])
@@ -211,17 +200,15 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 self.confirmed_right_points_history.append(tempRight[i])
 
                 with open(self.startingTextCorePath, "a") as startingFile:
-                    if not self.startingText:  # if self.startingText == []
+                    if not os.stat(self.startingTextCorePath).st_size:  # left file is empty
                         startingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].y(), ".1f"))))
                     else:
                         startingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].y(), ".1f"))))
                 with open(self.endingTextCorePath, "a") as endingFile:
-                    if not self.endingText:  # if self.endingText == []
+                    if not os.stat(self.endingTextCorePath).st_size:  # if right file is empty
                         endingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].y(), ".1f"))))
                     else:
                         endingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].y(), ".1f"))))
-                self.startingText.append((self.confirmed_left_points[len(self.confirmed_left_points) - 1].x(), self.confirmed_left_points[len(self.confirmed_left_points) - 1].x()))
-                self.endingText.append((self.confirmed_right_points[len(self.confirmed_right_points) - 1].x(), self.confirmed_right_points[len(self.confirmed_right_points) - 1].x()))
                 self.refreshPaint()
             i += 1
 
@@ -250,8 +237,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.autoCornerButton.setEnabled(1)
         self.triangleBox.setChecked(0)
         self.triangleBox.setEnabled(0)
-        self.startingText = []
-        self.endingText = []
         self.added_left_points = []
         self.added_right_points = []
         self.confirmed_left_points = []
@@ -301,12 +286,12 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             if self.triangleUpdate == 1:
                 if len(self.leftPolyList) == len(self.rightPolyList) > 0:
                     pointWidth = 7
-                    pen.setColor(QtGui.QColor(self.redVal, self.greenVal, self.blueVal, 255))
+                    pen.setColor(QtGui.QColor(self.triangleRedSlider.value(), self.triangleGreenSlider.value(), self.triangleBlueSlider.value(), 255))
                     leftpainter.setPen(pen)
                     for x in self.leftPolyList:
                         leftpainter.drawPolygon(x, 3)
 
-                    pen.setColor(QtGui.QColor(self.redVal, self.greenVal, self.blueVal, 255))
+                    pen.setColor(QtGui.QColor(self.triangleRedSlider.value(), self.triangleGreenSlider.value(), self.triangleBlueSlider.value(), 255))
                     rightpainter.setPen(pen)
                     for x in self.rightPolyList:
                         rightpainter.drawPolygon(x, 3)
@@ -355,7 +340,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         # Undo
         if type(key_event) == QtGui.QKeyEvent and key_event.modifiers() == QtCore.Qt.ControlModifier and key_event.key() == QtCore.Qt.Key_Z:
             undoFlag = 0
-            if self.leftOn and self.rightOn:
+            if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
                 if self.enableDeletion == 1:
                     if self.currentWindow == 0 and self.added_left_points != []:
                         self.added_right_points.pop(len(self.added_right_points)-1)
@@ -381,7 +366,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                             open(self.startingTextCorePath, 'w').writelines(data1)
                         else:
                             os.remove(self.startingTextCorePath)
-                            self.startingText = []
                         data2 = open(self.endingTextCorePath, 'r').readlines()
                         del data2[-1]
                         if data2:
@@ -389,7 +373,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                             open(self.endingTextCorePath, 'w').writelines(data2)
                         else:
                             os.remove(self.endingTextCorePath)
-                            self.endingText = []
                         # self.currentWindow = 0
                         self.enableDeletion = 0
                         self.persistFlag = 0
@@ -417,7 +400,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                             open(self.startingTextCorePath, 'w').writelines(data1)
                         else:
                             os.remove(self.startingTextCorePath)
-                            self.startingText = []
                         data2 = open(self.endingTextCorePath, 'r').readlines()
                         del data2[-1]
                         if data2:
@@ -425,7 +407,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                             open(self.endingTextCorePath, 'w').writelines(data2)
                         else:
                             os.remove(self.endingTextCorePath)
-                            self.endingText = []
                         self.currentWindow = 0
                         self.enableDeletion = 0
                         self.persistFlag = 0
@@ -451,7 +432,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.notificationLine.setText(" This hasn't been implemented yet. ;)")
         # Delete recent temp
         elif type(key_event) == QtGui.QKeyEvent and key_event.key() == QtCore.Qt.Key_Backspace:
-            if self.leftOn and self.rightOn and self.enableDeletion == 1:
+            if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents() and self.enableDeletion == 1:
                 if self.currentWindow == 0 and self.added_left_points != []:
                     self.added_right_points.pop(len(self.added_right_points)-1)
                     self.enableDeletion = 0
@@ -470,18 +451,14 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
 
     # Function override of the window resize event. Fairly lightweight.
     # Currently just recalculates the necessary scalar values to keep image displays and point placements accurate.
-    # (At this time, I am choosing to keep a scalar for each image in hopes of supporting different ratios/sizes)
     def resizeEvent(self, event):
-        self.leftScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
-        self.rightScalar = (self.rightSize[0] / (self.endingImage.geometry().topRight().x() - self.endingImage.geometry().topLeft().x()), self.rightSize[1] / (self.endingImage.geometry().bottomRight().y() - self.endingImage.geometry().topLeft().y()))
-        self.resizeFlag = True
+        self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
 
     # Function that handles GUI and file behavior when the mouse is clicked.
     def mousePressEvent(self, cursor_event):
-        self.leftScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
-        self.rightScalar = (self.rightSize[0] / (self.endingImage.geometry().topRight().x() - self.endingImage.geometry().topLeft().x()), self.rightSize[1] / (self.endingImage.geometry().bottomRight().y() - self.endingImage.geometry().topLeft().y()))
+        self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
 
-        if self.leftOn and self.rightOn:
+        if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
             # Check if 3 or more points exist for two corresponding images so that triangles may be displayed
             if (len(self.added_left_points) + len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.added_left_points) + len(self.chosen_left_points) + len(self.confirmed_left_points)) >= 3:
                 if self.currentWindow == 0:
@@ -500,17 +477,15 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.confirmed_right_points.append(throwawayRight)
                     self.confirmed_right_points_history.append(throwawayRight)
                     with open(self.startingTextCorePath, "a") as startingFile:
-                        if not self.startingText:
+                        if not os.stat(self.startingTextCorePath).st_size:  # left file is empty
                             startingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].y(), ".1f"))))
                         else:
                             startingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].y(), ".1f"))))
                     with open(self.endingTextCorePath, "a") as endingFile:
-                        if not self.endingText:
+                        if not os.stat(self.endingTextCorePath).st_size:  # right file is empty
                             endingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].y(), ".1f"))))
                         else:
                             endingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].y(), ".1f"))))
-                    self.startingText.append((self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), self.confirmed_left_points[len(self.confirmed_left_points)-1].x()))
-                    self.endingText.append((self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), self.confirmed_right_points[len(self.confirmed_right_points)-1].x()))
                     self.persistFlag = 0
                     self.refreshPaint()
                     self.displayTriangles()
@@ -518,7 +493,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.resetPointsButton.setEnabled(1)
                     self.notificationLine.setText(" Successfully confirmed set of added points.")
                 if self.startingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y():
-                    leftCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.startingImage.geometry().topLeft().x())*self.leftScalar[0]), int((cursor_event.pos().y()-self.startingImage.geometry().topLeft().y())*self.leftScalar[1]))
+                    leftCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.startingImage.geometry().topLeft().x())*self.imageScalar[0]), int((cursor_event.pos().y()-self.startingImage.geometry().topLeft().y())*self.imageScalar[1]))
                     self.added_left_points.append(leftCoord)
                     self.refreshPaint()
                     self.currentWindow = 1
@@ -528,7 +503,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.notificationLine.setText(" Successfully added left temporary point.")
             elif self.currentWindow == 1:
                 if self.endingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y():
-                    rightCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.endingImage.geometry().topLeft().x())*self.rightScalar[0]), int((cursor_event.pos().y()-self.startingImage.geometry().topLeft().y())*self.rightScalar[1]))
+                    rightCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.endingImage.geometry().topLeft().x())*self.imageScalar[0]), int((cursor_event.pos().y()-self.startingImage.geometry().topLeft().y())*self.imageScalar[1]))
                     self.added_right_points.append(rightCoord)
                     self.refreshPaint()
                     self.currentWindow = 0
@@ -547,7 +522,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     # Very simple function for updating user preference for blending transparency in images
     # (This is disabled by default, as transparency is often unused and reduces performance.)
     def transparencyUpdate(self):
-        self.transparencySetting = int(self.transparencyBox.isChecked())
         if self.transparencyBox.isChecked():
             self.notificationLine.setText(" Successfully enabled transparency layer.")
         else:
@@ -558,7 +532,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     # The alpha slider than becomes an interactive display, showing each blend in realtime.
     # (Naturally, this is disabled by default, as full blending takes 20 times as long to run)
     def blendBoxUpdate(self):
-        self.blendBoxSetting = int(self.blendBox.isChecked())
         self.blendText.setEnabled(int(self.blendBox.isChecked()))
         if self.blendBox.isChecked():
             self.notificationLine.setText(" Successfully enabled full blending.")
@@ -569,15 +542,14 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     # Image smoothing removes hot pixels by using the values of neighboring pixels instead.
     # (While it is applied during every blend, smoothing is disabled by default and can be visibly toggled at any time)
     def smoothBoxUpdate(self):
-        self.smoothBoxSetting = int(self.smoothingBox.isChecked())
-        if self.blendExecuted:
+        if self.blendingImage.hasScaledContents():
             if self.fullBlendComplete:     # If it's a full blend
                 value_num = ((self.alphaSlider.value() / self.alphaSlider.maximum()) / self.fullBlendValue) * self.fullBlendValue
-                if self.smoothBoxSetting:
+                if self.smoothingBox.isChecked():
                     temp = self.smoothList[round(value_num / self.fullBlendValue)]
                 else:
                     temp = self.blendList[round(value_num / self.fullBlendValue)]
-            elif self.smoothBoxSetting:
+            elif self.smoothingBox.isChecked():
                 temp = self.smoothedImage
             else:
                 temp = self.blendedImage
@@ -585,17 +557,17 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             if len(temp.shape) == 2:
                 self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)))
             elif temp.shape[2] == 3:
-                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGB888)))
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], temp.shape[1] * 3, QtGui.QImage.Format_RGB888)))
             elif temp.shape[2] == 4:
                 self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGBA8888)))
             else:
                 print("Generic catching error: Something went wrong when loading the image.")
 
-            if self.smoothBoxSetting:
+            if self.smoothingBox.isChecked():
                 self.notificationLine.setText(" Successfully applied image smoothing.")
             else:
                 self.notificationLine.setText(" Successfully removed image smoothing.")
-        elif self.smoothBoxSetting:
+        elif self.smoothingBox.isChecked():
             self.notificationLine.setText(" Successfully enabled image smoothing.")
         else:
             self.notificationLine.setText(" Successfully disabled image smoothing.")
@@ -667,7 +639,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.notificationLine.setText(" Alpha value changed from " + self.alphaValue.text() + " to " + str(value) + ".")
         self.alphaValue.setText(str(value))
         if self.fullBlendComplete:
-            if self.smoothBoxSetting:
+            if self.smoothingBox.isChecked():
                 temp = self.smoothList[round(value_num / self.fullBlendValue)]
             else:
                 temp = self.blendList[round(value_num / self.fullBlendValue)]
@@ -675,7 +647,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             if len(temp.shape) == 2:
                 self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)))
             elif temp.shape[2] == 3:
-                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGB888)))
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], temp.shape[1] * 3, QtGui.QImage.Format_RGB888)))
             elif temp.shape[2] == 4:
                 self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGBA8888)))
             else:
@@ -683,18 +655,15 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
 
     # Red/Green/Blue slider functions for the triangle widget in order to select custom colors
     def updateRed(self):
-        self.redVal = self.triangleRedSlider.value()
-        self.notificationLine.setText(" Red value set to " + str(self.redVal) + ".")
+        self.notificationLine.setText(" Red value set to " + str(self.triangleRedSlider.value()) + ".")
         self.refreshPaint()
 
     def updateGreen(self):
-        self.greenVal = self.triangleGreenSlider.value()
-        self.notificationLine.setText(" Green value set to " + str(self.greenVal) + ".")
+        self.notificationLine.setText(" Green value set to " + str(self.triangleGreenSlider.value()) + ".")
         self.refreshPaint()
 
     def updateBlue(self):
-        self.blueVal = self.triangleBlueSlider.value()
-        self.notificationLine.setText(" Blue value set to " + str(self.blueVal) + ".")
+        self.notificationLine.setText(" Blue value set to " + str(self.triangleBlueSlider.value()) + ".")
         self.refreshPaint()
 
     # Function that handles behavior when the user wishes to blend the two calibrated images.
@@ -716,7 +685,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         rightImageARR = np.asarray(rightImageRaw)
         errorFlag = False
 
-        if self.blendBoxSetting and self.blendText.text() == '.':
+        if self.blendBox.isChecked() and self.blendText.text() == '.':
             self.notificationLine.setText(" Failed to morph. Please disable full blending or specify a valid value (0.001 to 1.0)")
             errorFlag = True
         elif len(leftImageRaw.shape) < 3 and len(rightImageRaw.shape) < 3:  # if grayscale
@@ -726,22 +695,22 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.blendList = []
             self.smoothList = []
             start_time = time.time()
-            if self.blendBoxSetting:
+            if self.blendBox.isChecked():
                 self.verifyValue("blend")
                 x = 0
                 while x <= self.alphaSlider.maximum():
                     self.notificationLine.setText(" Calculating RGB (.jpg) morph... {Frame " + str(x + 1) + "/" + str(self.alphaSlider.maximum() + 1) + "}")
                     self.repaint()
                     if x == self.alphaSlider.maximum():
-                        tempImage = grayScale.getImageAtAlpha(1.0, self.smoothBoxSetting)
+                        tempImage = grayScale.getImageAtAlpha(1.0, self.smoothingBox.isChecked())
                     else:
-                        tempImage = grayScale.getImageAtAlpha(x * self.fullBlendValue, self.smoothBoxSetting)
+                        tempImage = grayScale.getImageAtAlpha(x * self.fullBlendValue, self.smoothingBox.isChecked())
                     self.blendList.append(tempImage)
                     self.smoothList.append(smoothBlend(tempImage))
                     x += 1
                 self.fullBlendComplete = True
                 self.gifText.setEnabled(1)
-                if self.smoothBoxSetting:
+                if self.smoothingBox.isChecked():
                     temp = self.smoothList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
                 else:
                     temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
@@ -749,14 +718,14 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             else:
                 self.fullBlendComplete = False
                 self.gifText.setEnabled(0)
-                self.blendedImage = grayScale.getImageAtAlpha(float(self.alphaValue.text()), self.smoothBoxSetting)
+                self.blendedImage = grayScale.getImageAtAlpha(float(self.alphaValue.text()), self.smoothingBox.isChecked())
                 self.smoothedImage = smoothBlend(self.blendedImage)
-                if self.smoothBoxSetting:
+                if self.smoothingBox.isChecked():
                     self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.smoothedImage.data, self.smoothedImage.shape[1], self.smoothedImage.shape[0], QtGui.QImage.Format_Grayscale8)))
                 else:
                     self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], QtGui.QImage.Format_Grayscale8)))
             self.notificationLine.setText(" Morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
-        elif not self.leftPNG or not self.rightPNG or not self.transparencySetting or (leftImageRaw.shape[2] == 3 and rightImageRaw.shape[2] == 3):  # if color, no alpha (.JPG)
+        elif not self.transparencyBox.isChecked() or (leftImageRaw.shape[2] == 3 and rightImageRaw.shape[2] == 3):  # if color, no alpha (.JPG)
             self.notificationLine.setText(" Calculating RGB (.jpg) morph...")
             self.repaint()
             colorScaleR = Morpher(leftImageARR[:, :, 0], triangleTuple[0], rightImageARR[:, :, 0], triangleTuple[1])
@@ -765,7 +734,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.blendList = []
             self.smoothList = []
             start_time = time.time()
-            if self.blendBoxSetting:
+            if self.blendBox.isChecked():
 
                 counter = 0
                 while counter <= self.alphaSlider.maximum():
@@ -776,9 +745,9 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     else:
                         alphaVal = counter * self.fullBlendValue
                     pool = multiprocessing.Pool(4)
-                    results = [pool.apply_async(colorScaleR.getImageAtAlpha, (alphaVal, self.smoothBoxSetting)),
-                               pool.apply_async(colorScaleG.getImageAtAlpha, (alphaVal, self.smoothBoxSetting)),
-                               pool.apply_async(colorScaleB.getImageAtAlpha, (alphaVal, self.smoothBoxSetting))]
+                    results = [pool.apply_async(colorScaleR.getImageAtAlpha, (alphaVal, self.smoothingBox.isChecked())),
+                               pool.apply_async(colorScaleG.getImageAtAlpha, (alphaVal, self.smoothingBox.isChecked())),
+                               pool.apply_async(colorScaleB.getImageAtAlpha, (alphaVal, self.smoothingBox.isChecked()))]
                     blendR = results[0].get()
                     blendG = results[1].get()
                     blendB = results[2].get()
@@ -790,19 +759,19 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     counter += 1
                 self.fullBlendComplete = True
                 self.gifText.setEnabled(1)
-                if self.smoothBoxSetting:
+                if self.smoothingBox.isChecked():
                     temp = self.smoothList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
                 else:
                     temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
-                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGB888)))
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], temp.shape[1] * 3, QtGui.QImage.Format_RGB888)))
                 self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
             else:
                 self.fullBlendComplete = False
                 self.gifText.setEnabled(0)
                 pool = multiprocessing.Pool(4)
-                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
-                           pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
-                           pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting))]
+                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothingBox.isChecked())),
+                           pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothingBox.isChecked())),
+                           pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothingBox.isChecked()))]
                 blendR = results[0].get()
                 blendG = results[1].get()
                 blendB = results[2].get()
@@ -811,12 +780,12 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 pool.join()
                 self.blendedImage = np.dstack((blendR, blendG, blendB))
                 self.smoothedImage = np.dstack((smoothBlend(blendR), smoothBlend(blendG), smoothBlend(blendB)))
-                if self.smoothBoxSetting:
-                    self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.smoothedImage.data, self.smoothedImage.shape[1], self.smoothedImage.shape[0], QtGui.QImage.Format_RGB888)))
+                if self.smoothingBox.isChecked():
+                    self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.smoothedImage.data, self.smoothedImage.shape[1], self.smoothedImage.shape[0], self.smoothedImage.shape[1] * 3, QtGui.QImage.Format_RGB888)))
                 else:
-                    self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], QtGui.QImage.Format_RGB888)))
+                    self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], self.blendedImage.shape[1] * 3, QtGui.QImage.Format_RGB888)))
                 self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
-        elif self.leftPNG and self.rightPNG and self.transparencySetting and leftImageRaw.shape[2] == 4 and rightImageRaw.shape[2] == 4:   # if color, alpha (.PNG)
+        elif self.transparencyBox.isChecked() and leftImageRaw.shape[2] == 4 and rightImageRaw.shape[2] == 4:   # if color, alpha (.PNG)
             self.notificationLine.setText(" Calculating RGBA (.png) morph...")
             self.repaint()
             colorScaleR = Morpher(leftImageARR[:, :, 0], triangleTuple[0], rightImageARR[:, :, 0], triangleTuple[1])
@@ -826,7 +795,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.blendList = []
             self.smoothList = []
             start_time = time.time()
-            if self.blendBoxSetting:
+            if self.blendBox.isChecked():
                 counter = 0
                 while counter <= self.alphaSlider.maximum():
                     self.notificationLine.setText(" Calculating RGBA (.jpg) morph... {Frame " + str(counter + 1) + "/" + str(self.alphaSlider.maximum() + 1) + "}")
@@ -836,10 +805,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     else:
                         alphaVal = counter * self.fullBlendValue
                     pool = multiprocessing.Pool(4)
-                    results = [pool.apply_async(colorScaleR.getImageAtAlpha, (alphaVal, self.smoothBoxSetting)),
-                               pool.apply_async(colorScaleG.getImageAtAlpha, (alphaVal, self.smoothBoxSetting)),
-                               pool.apply_async(colorScaleB.getImageAtAlpha, (alphaVal, self.smoothBoxSetting)),
-                               pool.apply_async(colorScaleA.getImageAtAlpha, (alphaVal, self.smoothBoxSetting))]
+                    results = [pool.apply_async(colorScaleR.getImageAtAlpha, (alphaVal, self.smoothingBox.isChecked())),
+                               pool.apply_async(colorScaleG.getImageAtAlpha, (alphaVal, self.smoothingBox.isChecked())),
+                               pool.apply_async(colorScaleB.getImageAtAlpha, (alphaVal, self.smoothingBox.isChecked())),
+                               pool.apply_async(colorScaleA.getImageAtAlpha, (alphaVal, self.smoothingBox.isChecked()))]
                     blendR = results[0].get()
                     blendG = results[1].get()
                     blendB = results[2].get()
@@ -853,7 +822,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     counter += 1
                 self.fullBlendComplete = True
                 self.gifText.setEnabled(1)
-                if self.smoothBoxSetting:
+                if self.smoothingBox.isChecked():
                     temp = self.smoothList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
                 else:
                     temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
@@ -863,10 +832,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 self.fullBlendComplete = False
                 self.gifText.setEnabled(0)
                 pool = multiprocessing.Pool(4)
-                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
-                           pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
-                           pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting)),
-                           pool.apply_async(colorScaleA.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothBoxSetting))]
+                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothingBox.isChecked())),
+                           pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothingBox.isChecked())),
+                           pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothingBox.isChecked())),
+                           pool.apply_async(colorScaleA.getImageAtAlpha, (float(self.alphaValue.text()), self.smoothingBox.isChecked()))]
                 blendR = results[0].get()
                 blendG = results[1].get()
                 blendB = results[2].get()
@@ -876,7 +845,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 pool.join()
                 self.blendedImage = np.dstack((blendR, blendG, blendB, blendA))
                 self.smoothedImage = np.dstack((smoothBlend(blendR), smoothBlend(blendG), smoothBlend(blendB), smoothBlend(blendA)))
-                if self.smoothBoxSetting:
+                if self.smoothingBox.isChecked():
                     self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.smoothedImage.data, self.smoothedImage.shape[1], self.smoothedImage.shape[0], QtGui.QImage.Format_RGBA8888)))
                 else:
                     self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], QtGui.QImage.Format_RGBA8888)))
@@ -885,7 +854,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.notificationLine.setText(" Generic Catching Error: Check image file types..")
             errorFlag = True
         if not errorFlag:
-            self.blendExecuted = True
             self.blendingImage.setScaledContents(1)
             self.blendButton.setEnabled(1)
             self.saveButton.setEnabled(1)
@@ -898,7 +866,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     #     Single Blend → Color     .jpg/.jpeg/.png
     #     Full Blend → Grayscale/Color .gif (default frame time: 100 ms)
     def saveImages(self):
-        if self.blendExecuted:
+        if self.blendingImage.hasScaledContents():
             filepath = ""
             if self.fullBlendComplete and self.blendList != []:  # create GIF
                 self.gifTextDone()
@@ -907,7 +875,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 if filepath == "":
                     return
 
-                if self.smoothBoxSetting:
+                if self.smoothingBox.isChecked():
                     temp = self.smoothList
                     for frame in reversed(self.smoothList):
                         temp.append(frame)
@@ -928,7 +896,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 if filepath == "":
                     return
 
-                if self.smoothBoxSetting:
+                if self.smoothingBox.isChecked():
                     imageio.imwrite(filepath, self.smoothedImage)
                 else:
                     imageio.imwrite(filepath, self.blendedImage)
@@ -947,12 +915,11 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.triangleBox.setEnabled(0)
         self.displayTriangles()
 
-        self.leftOn = 1
         # self.leftPixmap = QtGui.QPixmap(filePath)
         self.startingImage.setPixmap(QtGui.QPixmap(filePath))
         self.startingImage.setScaledContents(1)
         self.leftSize = (imageio.imread(filePath).shape[1], imageio.imread(filePath).shape[0])
-        self.leftScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
+        self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
 
         self.startingImagePath = filePath
         self.startingTextPath = filePath + '.txt'  # TODO: Change from ".FILETYPE.txt" to "_FILETYPE.txt"
@@ -960,12 +927,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         # Obtain file's name, removing path and extension
         # Example: C:/Desktop/StartGray1.jpg => StartGray1
         leftFileRegex = re.search('(?<=[/])[^/]+(?=[.])', filePath)
-        leftTypeRegex = re.search('.(PNG|png)$', filePath)
-
-        if leftTypeRegex is None:
-            self.leftPNG = 0
-        else:
-            self.leftPNG = 1
 
         # Now assign file's name to desired path for information storage (appending .txt at the end)
         # self.startingTextCorePath = 'C:/Users/USER/PycharmProjects/Personal/Morphing/Images_Points/' + leftFileRegex.group() + '.txt'
@@ -974,6 +935,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         # If there is already a text file at the location of the selected image, the program assumes that it is what
         # the user intends to start with and moves it to the desired path for future manipulation.
         # Otherwise, the program creates an empty file instead.
+        # TODO: Strongly recommend re-writing everything beneath this point
         if os.path.isfile(self.startingTextPath):
             copyfile(self.startingTextPath, self.startingTextCorePath)
         else:
@@ -981,7 +943,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 os.makedirs(os.path.dirname(self.startingTextCorePath))
             open(self.startingTextCorePath, 'a').close()
 
-        self.startingText = []
         self.added_left_points = []
         self.added_right_points = []
         self.confirmed_left_points = []
@@ -989,33 +950,35 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.confirmed_right_points = []
         self.confirmed_right_points_history = []
         self.chosen_left_points = []
-
         # TODO: Consider changing this to "if self.startingTextCorePath is self.startingTextPath, else"
         if os.path.isfile(self.startingTextCorePath):  # Check new path for text file
             with open(self.startingTextCorePath, "r") as leftFile:
                 for x in leftFile:
-                    self.startingText.append(x.split())
                     self.chosen_left_points.append(QtCore.QPoint(int(float(x.split()[0])), int(float(x.split()[1]))))
         elif os.path.isfile(self.startingTextPath):  # Check old path for text file
             with open(self.startingTextPath, "r") as leftFile:
                 for x in leftFile:
-                    self.startingText.append(x.split())
                     self.chosen_left_points.append(QtCore.QPoint(int(float(x.split()[0])), int(float(x.split()[1]))))
 
         if os.path.isfile(self.startingTextPath):
             os.remove(self.startingTextPath)
 
-        if self.leftOn and self.rightOn:
+        if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
             self.alphaValue.setEnabled(1)
             self.alphaSlider.setEnabled(1)
             if self.chosen_left_points != [] and self.chosen_right_points != []:
                 self.resetPointsButton.setEnabled(1)
             self.autoCornerButton.setEnabled(1)
-            # Check if 3 or more points exist for two corresponding images so that triangles may be displayed
-            if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
-                self.blendButton.setEnabled(1)
-                self.triangleBox.setEnabled(1)
-                self.triangleBox.setChecked(self.triangleUpdatePref)
+
+            # Check that the two images are the same size - if they aren't, the user should be notified that this won't work
+            if self.leftSize[0] == self.rightSize[0] and self.leftSize[1] == self.rightSize[1]:
+                # Check if 3 or more points exist for two corresponding images so that triangles may be displayed
+                if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
+                    self.blendButton.setEnabled(1)
+                    self.triangleBox.setEnabled(1)
+                    self.triangleBox.setChecked(self.triangleUpdatePref)
+            else:
+                self.notificationLine.setText(" Left image loaded - WARNING: Input images must be the same size!")
         self.displayTriangles()
 
     def loadDataRight(self):
@@ -1030,12 +993,11 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.triangleBox.setEnabled(0)
         self.displayTriangles()
 
-        self.rightOn = 1
         # self.rightPixmap = QtGui.QPixmap(filePath)
         self.endingImage.setPixmap(QtGui.QPixmap(filePath))
         self.endingImage.setScaledContents(1)
         self.rightSize = (imageio.imread(filePath).shape[1], imageio.imread(filePath).shape[0])
-        self.rightScalar = (self.rightSize[0] / (self.endingImage.geometry().topRight().x() - self.endingImage.geometry().topLeft().x()), self.rightSize[1] / (self.endingImage.geometry().bottomRight().y() - self.endingImage.geometry().topLeft().y()))
+        self.imageScalar = (self.rightSize[0] / (self.endingImage.geometry().topRight().x() - self.endingImage.geometry().topLeft().x()), self.rightSize[1] / (self.endingImage.geometry().bottomRight().y() - self.endingImage.geometry().topLeft().y()))
 
         self.endingImagePath = filePath
         self.endingTextPath = filePath + '.txt'
@@ -1043,12 +1005,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         # Obtain file's name, removing path and extension
         # Example: C:/Desktop/EndGray1.jpg => EndGray1
         rightFileRegex = re.search('(?<=[/])[^/]+(?=[.])', filePath)
-        rightTypeRegex = re.search('.(PNG|png)$', filePath)
-
-        if rightTypeRegex is None:
-            self.rightPNG = 0
-        else:
-            self.rightPNG = 1
 
         # Now assign file's name to desired path for information storage (appending .txt at the end)
         # self.endingTextCorePath = 'C:/Users/USER/PycharmProjects/Personal/Morphing/Images_Points/' + rightFileRegex.group() + '.txt'
@@ -1057,6 +1013,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         # If there is already a text file at the location of the selected image, the program assumes that it is what
         # the user intends to start with and moves it to the desired path for future manipulation.
         # Otherwise, the program creates an empty file instead.
+        # TODO: Strongly recommend re-writing everything beneath this point
         if os.path.isfile(self.endingTextPath):
             copyfile(self.endingTextPath, self.endingTextCorePath)
         else:
@@ -1064,7 +1021,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 os.makedirs(os.path.dirname(self.endingTextCorePath))
             open(self.endingTextCorePath, 'a').close()
 
-        self.endingText = []
         self.added_left_points = []
         self.added_right_points = []
         self.confirmed_left_points = []
@@ -1076,28 +1032,31 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         if os.path.isfile(self.endingTextCorePath):
             with open(self.endingTextCorePath, "r") as rightFile:
                 for x in rightFile:
-                    self.endingText.append(x.split())
                     self.chosen_right_points.append(QtCore.QPoint(int(float(x.split()[0])), int(float(x.split()[1]))))
         elif os.path.isfile(self.endingTextPath):
             with open(self.endingTextPath, "r") as rightFile:
                 for x in rightFile:
-                    self.endingText.append(x.split())
                     self.chosen_right_points.append(QtCore.QPoint(int(float(x.split()[0])), int(float(x.split()[1]))))
 
         if os.path.isfile(self.endingTextPath):
             os.remove(self.endingTextPath)
 
-        if self.leftOn and self.rightOn:
+        if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
             self.alphaValue.setEnabled(1)
             self.alphaSlider.setEnabled(1)
             if self.chosen_left_points != [] and self.chosen_right_points != []:
                 self.resetPointsButton.setEnabled(1)
             self.autoCornerButton.setEnabled(1)
-            # Check if 3 or more points exist for two corresponding images so that triangles may be displayed
-            if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
-                self.blendButton.setEnabled(1)
-                self.triangleBox.setEnabled(1)
-                self.triangleBox.setChecked(self.triangleUpdatePref)
+
+            # Check that the two images are the same size - if they aren't, the user should be notified that this won't work
+            if self.leftSize[0] == self.rightSize[0] and self.leftSize[1] == self.rightSize[1]:
+                # Check if 3 or more points exist for two corresponding images so that triangles may be displayed
+                if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
+                    self.blendButton.setEnabled(1)
+                    self.triangleBox.setEnabled(1)
+                    self.triangleBox.setChecked(self.triangleUpdatePref)
+            else:
+                self.notificationLine.setText(" Right image loaded - WARNING: Input images must be the same size!")
         self.displayTriangles()
 
 
