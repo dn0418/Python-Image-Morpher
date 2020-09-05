@@ -23,7 +23,7 @@
     - Comment: <i> While polishing these, I found that due to how the functions were written, it was possible for the program to 
     generate text files with varying naming schemes.. some ended with 'filename.txt', others ended with 'filename.FILETYPE.txt'.
     This has been streamlined into a more readable 'filename-filetype.txt' - images that share a name but differ in type should
-    play more nicely with this change.
+    play more nicely with this change.</i>
 
 # Version 0.2.8.2 - (2020-08-26)
 ## Changes
