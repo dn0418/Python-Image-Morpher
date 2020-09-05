@@ -1,3 +1,30 @@
+# Version 0.2.9.0 - (2020-09-05)
+#### Note: Since I am taking up a software developer role next week, releases are going to slow down for the foreseeable future.
+## Known Bugs
+- The GUI can sometimes become unresponsive during morphing calculations (but eventually returns to normal)
+    - QtCore.QCoreApplication.processEvents() is a potential workaround but currently produces buggy results
+    
+## Added
+- <b>Source Image Resizing</b>
+    - Since PIM requires the user's images to be the same size, it can now create and hotswap resized copies of the left/right images at the click of a button
+    - For simplicity, one button resizes the left image to the right image's dimensions and the other button does the opposite
+        - Both images must be loaded to enable this functionality
+        - Additionally scales any added/confirmed/chosen points to the new image dimensions
+        - Buttons will be set to <b>bold</b> whenever the user's images aren't the same size
+    - Resized image files are stored under: <b>ROOT_DIR/Images_Points/filename-[width]x[height].filetype</b>
+    - Resized text files are stored under: <b>ROOT_DIR/Images_Points/filename-[width]x[height]-filetype.txt</b>
+        
+## Changes
+- The program now locks out usage of point placement as well as the <b>Add Corners</b> button when the user's images aren't the same size
+    - Comment: <i> This is to really drive the point home: fix one of your images or you'll just be wasting your time!</i>
+- Moderate rewrite of <b>loadDataLeft()</b> and <b>loadDataRight()</b>
+    - New helper function: <b>checkFiles(sourceFunc, basePath, rootPath)</b>
+    - Text files are now stored under: <b>ROOT_DIR/Images_Points/filename-filetype.txt</b>
+    - Comment: <i> While polishing these, I found that due to how the functions were written, it was possible for the program to 
+    generate text files with varying naming schemes.. some ended with 'filename.txt', others ended with 'filename.FILETYPE.txt'.
+    This has been streamlined into a more readable 'filename-filetype.txt' - images that share a name but differ in type should
+    play more nicely with this change.
+
 # Version 0.2.8.2 - (2020-08-26)
 ## Changes
 - Support for morphing two images of different sizes, while initially left up in the air as a potential feature, is no longer being considered

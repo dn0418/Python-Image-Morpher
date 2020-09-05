@@ -58,6 +58,7 @@ python get-pip.py
 ## Development 'To-Do' List:
 - Redo / CTRL + Y (User may redo an action that was previously undone or deleted)
 - Image Zoom (User may click the right mouse button on an image to toggle zoom into it in order to place more accurate points)
+- Freestyle Point Placement (User may begin point pairs with either the left or right image, as opposed to only the left)
 - Improved Performance (Currently, interpolation is the biggest bottleneck, second to the required matrix math)
 
 If you encounter an error, a bug, or if you simply wish to request a change/feature, please file an issue using the tracker that GitHub provides, [here](https://github.com/ddowd97/Morphing/issues).

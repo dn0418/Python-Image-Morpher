@@ -8,9 +8,10 @@ import sys
 import os
 import re
 import time
-from shutil import copyfile
+import shutil
 
 import imageio
+from PIL import Image
 from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog
 import math
 
@@ -49,6 +50,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.endingTextPath = ''                                                # String used to store file path to the right image's text file, if it was pre-made (LEGACY)
         self.startingTextCorePath = ''                                          # String used to store local file path to the left image's corresponding text file
         self.endingTextCorePath = ''                                            # String used to store local file path to the right image's corresponding text file
+        self.startingImageName = ''                                             # String used to store the left image's file name
+        self.endingImageName = ''                                               # String used to store the right image's file name
+        self.startingImageType = ''                                             # String used to store the left image's file type
+        self.endingImageType = ''                                               # String used to store the right image's file type
 
         self.currentWindow = 0                                                  # Flag used to indicate which image will accept the next mouse click for creating points
         self.enableDeletion = 0                                                 # Flag used to indicate whether the most recently created point can be deleted with Backspace
@@ -71,6 +76,8 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         # Logic
         self.loadStartButton.clicked.connect(self.loadDataLeft)                 # When the first  load image button is clicked, begins loading logic
         self.loadEndButton.clicked.connect(self.loadDataRight)                  # When the second load image button is clicked, begins loading logic
+        self.resizeLeftButton.clicked.connect(self.resizeLeft)                  # When the left resize button is clicked, begins resizing logic
+        self.resizeRightButton.clicked.connect(self.resizeRight)                # When the right resize button is clicked, begins resizing logic
         self.triangleBox.clicked.connect(self.updateTriangleStatus)             # When the triangle box is clicked, changes flags
         self.transparencyBox.stateChanged.connect(self.transparencyUpdate)      # When the transparency box is checked or unchecked, changes flags
         self.blendButton.clicked.connect(self.blendImages)                      # When the blend button is clicked, begins blending logic
@@ -450,74 +457,188 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.notificationLine.setText(" Successfully deleted recent temporary point.")
 
     # Function override of the window resize event. Fairly lightweight.
-    # Currently just recalculates the necessary scalar values to keep image displays and point placements accurate.
+    # Currently just recalculates the necessary scalar value to keep image displays and point placements accurate.
     def resizeEvent(self, event):
         self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
 
+    # Function that resizes a copy of the left image to the right image's dimensions
+    def resizeLeft(self):
+        if self.leftSize != self.rightSize:
+            img = Image.open(self.startingImagePath)
+            img = img.resize((self.rightSize[0], self.rightSize[1]), Image.ANTIALIAS)
+
+            for index, pointPair in enumerate(self.chosen_left_points):
+                self.chosen_left_points[index] = QtCore.QPoint(int(pointPair.x() * self.rightSize[0] / self.leftSize[0]), int(pointPair.y() * self.rightSize[1] / self.leftSize[1]))
+            for index, pointPair in enumerate(self.confirmed_left_points):
+                self.confirmed_left_points[index] = QtCore.QPoint(int(pointPair.x() * self.rightSize[0] / self.leftSize[0]), int(pointPair.y() * self.rightSize[1] / self.leftSize[1]))
+            for index, pointPair in enumerate(self.added_left_points):
+                self.added_left_points[index] = QtCore.QPoint(int(pointPair.x() * self.rightSize[0] / self.leftSize[0]), int(pointPair.y() * self.rightSize[1] / self.leftSize[1]))
+
+            if img.mode == 'RGBA':
+                self.startingImageType = '.png'
+            path = ROOT_DIR + '/Images_Points/' + self.startingImageName + '-' + str(self.rightSize[0]) + 'x' + str(self.rightSize[1]) + self.startingImageType
+            textPath = ROOT_DIR + '/Images_Points/' + self.startingImageName + '-' + str(self.rightSize[0]) + 'x' + str(self.rightSize[1]) + '-' + self.startingImageType[1:] + '.txt'
+            img.save(path)
+
+            open(textPath, 'w').close()
+            writeFlag = False
+            with open(textPath, "a") as startingFile:
+                for pointPair in self.chosen_left_points:
+                    if not writeFlag:
+                        startingFile.write('{:>8}{:>8}'.format(str(format(pointPair.x(), ".1f")), str(format(pointPair.y(), ".1f"))))
+                        writeFlag = True
+                    else:
+                        startingFile.write('\n{:>8}{:>8}'.format(str(format(pointPair.x(), ".1f")), str(format(pointPair.y(), ".1f"))))
+                for pointPair in self.confirmed_left_points:
+                    if not writeFlag:
+                        startingFile.write('{:>8}{:>8}'.format(str(format(pointPair.x(), ".1f")), str(format(pointPair.y(), ".1f"))))
+                        writeFlag = True
+                    else:
+                        startingFile.write('\n{:>8}{:>8}'.format(str(format(pointPair.x(), ".1f")), str(format(pointPair.y(), ".1f"))))
+            self.startingImageName += '-' + str(self.rightSize[0]) + 'x' + str(self.rightSize[1])
+            self.startingImagePath = path
+            self.startingTextCorePath = textPath
+            self.startingImage.setPixmap(QtGui.QPixmap(self.startingImagePath))
+            self.notificationLine.setText(" Successfully resized left image from " + str(self.leftSize[0]) + "x" + str(self.leftSize[1]) + " to " + str(self.rightSize[0]) + "x" + str(self.rightSize[1]))
+            self.leftSize = self.rightSize
+            self.checkResize()
+        else:
+            self.notificationLine.setText(" Can't resize the left image - both images share the same dimensions!")
+
+    # Function that resizes a copy of the right image to the left image's dimensions
+    def resizeRight(self):
+        if self.leftSize != self.rightSize:
+            img = Image.open(self.endingImagePath)
+            img = img.resize((self.leftSize[0], self.leftSize[1]), Image.ANTIALIAS)
+
+            for index, pointPair in enumerate(self.chosen_right_points):
+                self.chosen_right_points[index] = QtCore.QPoint(int(pointPair.x() * self.leftSize[0] / self.rightSize[0]), int(pointPair.y() * self.leftSize[1] / self.rightSize[1]))
+            for index, pointPair in enumerate(self.confirmed_right_points):
+                self.confirmed_right_points[index] = QtCore.QPoint(int(pointPair.x() * self.leftSize[0] / self.rightSize[0]), int(pointPair.y() * self.leftSize[1] / self.rightSize[1]))
+            for index, pointPair in enumerate(self.added_right_points):
+                self.added_right_points[index] = QtCore.QPoint(int(pointPair.x() * self.leftSize[0] / self.rightSize[0]), int(pointPair.y() * self.leftSize[1] / self.rightSize[1]))
+
+            if img.mode == 'RGBA':
+                self.endingImageType = '.png'
+            path = ROOT_DIR + '/Images_Points/' + self.endingImageName + '-' + str(self.leftSize[0]) + 'x' + str(self.leftSize[1]) + self.endingImageType
+            textPath = ROOT_DIR + '/Images_Points/' + self.endingImageName + '-' + str(self.leftSize[0]) + 'x' + str(self.leftSize[1]) + '-' + self.endingImageType[1:] + '.txt'
+            img.save(path)
+
+            open(textPath, 'w').close()
+            writeFlag = False
+            with open(textPath, "a") as endingFile:
+                for pointPair in self.chosen_right_points:
+                    if not writeFlag:
+                        endingFile.write('{:>8}{:>8}'.format(str(format(pointPair.x(), ".1f")), str(format(pointPair.y(), ".1f"))))
+                        writeFlag = True
+                    else:
+                        endingFile.write('\n{:>8}{:>8}'.format(str(format(pointPair.x(), ".1f")), str(format(pointPair.y(), ".1f"))))
+                for pointPair in self.confirmed_right_points:
+                    if not writeFlag:
+                        endingFile.write('{:>8}{:>8}'.format(str(format(pointPair.x(), ".1f")), str(format(pointPair.y(), ".1f"))))
+                        writeFlag = True
+                    else:
+                        endingFile.write('\n{:>8}{:>8}'.format(str(format(pointPair.x(), ".1f")), str(format(pointPair.y(), ".1f"))))
+            self.endingImageName += '-' + str(self.leftSize[0]) + 'x' + str(self.leftSize[1])
+            self.endingImagePath = path
+            self.endingTextCorePath = textPath
+            self.endingImage.setPixmap(QtGui.QPixmap(self.endingImagePath))
+            self.notificationLine.setText(" Successfully resized right image from " + str(self.rightSize[0]) + "x" + str(self.rightSize[1]) + " to " + str(self.leftSize[0]) + "x" + str(self.leftSize[1]))
+            self.rightSize = self.leftSize
+            self.checkResize()
+        else:
+            self.notificationLine.setText(" Can't resize the right image - both images share the same dimensions!")
+
+    # Macro function to save unnecessary repetitions of the same few lines of code called in resizeLeft() and resizeRight()
+    # Simply toggles some program flags and repaints any GUI changes afterwards.
+    def checkResize(self):
+        self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
+        if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
+            self.alphaValue.setEnabled(1)
+            self.alphaSlider.setEnabled(1)
+            self.autoCornerButton.setEnabled(1)
+            self.blendButton.setEnabled(1)
+            self.triangleBox.setEnabled(1)
+            self.triangleBox.setChecked(self.triangleUpdatePref)
+        else:
+            self.alphaValue.setEnabled(0)
+            self.alphaSlider.setEnabled(0)
+            self.autoCornerButton.setEnabled(0)
+            self.blendButton.setEnabled(0)
+            self.triangleBox.setEnabled(0)
+            self.triangleBox.setChecked(0)
+        self.displayTriangles()
+        self.repaint()
+        self.resizeLeftButton.setStyleSheet("")
+        self.resizeRightButton.setStyleSheet("")
+
     # Function that handles GUI and file behavior when the mouse is clicked.
     def mousePressEvent(self, cursor_event):
-        self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
+        if self.leftSize == self.rightSize:
+            self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
 
-        if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
-            # Check if 3 or more points exist for two corresponding images so that triangles may be displayed
-            if (len(self.added_left_points) + len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.added_left_points) + len(self.chosen_left_points) + len(self.confirmed_left_points)) >= 3:
-                if self.currentWindow == 0:
-                    self.triangleBox.setEnabled(1)
-                    self.blendButton.setEnabled(1)
-                    if self.triangleUpdatePref == 1:
-                        self.triangleUpdate = 1
-                        self.triangleBox.setChecked(1)
-                        self.refreshPaint()
-            if self.currentWindow == 0:
-                if not (self.endingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y()) and self.added_right_points != [] and self.persistFlag == 2:
-                    throwawayLeft = self.added_left_points.pop(len(self.added_left_points)-1)
-                    throwawayRight = self.added_right_points.pop(len(self.added_right_points)-1)
-                    self.confirmed_left_points.append(throwawayLeft)
-                    self.confirmed_left_points_history.append(throwawayLeft)
-                    self.confirmed_right_points.append(throwawayRight)
-                    self.confirmed_right_points_history.append(throwawayRight)
-                    with open(self.startingTextCorePath, "a") as startingFile:
-                        if not os.stat(self.startingTextCorePath).st_size:  # left file is empty
-                            startingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].y(), ".1f"))))
-                        else:
-                            startingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].y(), ".1f"))))
-                    with open(self.endingTextCorePath, "a") as endingFile:
-                        if not os.stat(self.endingTextCorePath).st_size:  # right file is empty
-                            endingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].y(), ".1f"))))
-                        else:
-                            endingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].y(), ".1f"))))
-                    self.persistFlag = 0
-                    self.refreshPaint()
-                    self.displayTriangles()
-                    self.autoCornerButton.setEnabled(1)
-                    self.resetPointsButton.setEnabled(1)
-                    self.notificationLine.setText(" Successfully confirmed set of added points.")
-                if self.startingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y():
-                    leftCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.startingImage.geometry().topLeft().x())*self.imageScalar[0]), int((cursor_event.pos().y()-self.startingImage.geometry().topLeft().y())*self.imageScalar[1]))
-                    self.added_left_points.append(leftCoord)
-                    self.refreshPaint()
-                    self.currentWindow = 1
-                    self.persistFlag = 0
-                    self.enableDeletion = 1
-                    self.autoCornerButton.setEnabled(0)
-                    self.notificationLine.setText(" Successfully added left temporary point.")
-            elif self.currentWindow == 1:
-                if self.endingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y():
-                    rightCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.endingImage.geometry().topLeft().x())*self.imageScalar[0]), int((cursor_event.pos().y()-self.startingImage.geometry().topLeft().y())*self.imageScalar[1]))
-                    self.added_right_points.append(rightCoord)
-                    self.refreshPaint()
-                    self.currentWindow = 0
-                    self.enableDeletion = 1
-                    self.persistFlag = 2
-                    self.notificationLine.setText(" Successfully added right temporary point.")
-            if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)):
-                if (len(self.chosen_left_points) + len(self.confirmed_left_points)) >= 3:
-                    if (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
+            if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
+                # Check if 3 or more points exist for two corresponding images so that triangles may be displayed
+                if (len(self.added_left_points) + len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.added_left_points) + len(self.chosen_left_points) + len(self.confirmed_left_points)) >= 3:
+                    if self.currentWindow == 0:
                         self.triangleBox.setEnabled(1)
+                        self.blendButton.setEnabled(1)
                         if self.triangleUpdatePref == 1:
                             self.triangleUpdate = 1
                             self.triangleBox.setChecked(1)
                             self.refreshPaint()
+                if self.currentWindow == 0:
+                    if not (self.endingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y()) and self.added_right_points != [] and self.persistFlag == 2:
+                        throwawayLeft = self.added_left_points.pop(len(self.added_left_points)-1)
+                        throwawayRight = self.added_right_points.pop(len(self.added_right_points)-1)
+                        self.confirmed_left_points.append(throwawayLeft)
+                        self.confirmed_left_points_history.append(throwawayLeft)
+                        self.confirmed_right_points.append(throwawayRight)
+                        self.confirmed_right_points_history.append(throwawayRight)
+                        with open(self.startingTextCorePath, "a") as startingFile:
+                            if not os.stat(self.startingTextCorePath).st_size:  # left file is empty
+                                startingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].y(), ".1f"))))
+                            else:
+                                startingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].y(), ".1f"))))
+                        with open(self.endingTextCorePath, "a") as endingFile:
+                            if not os.stat(self.endingTextCorePath).st_size:  # right file is empty
+                                endingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].y(), ".1f"))))
+                            else:
+                                endingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].y(), ".1f"))))
+                        self.persistFlag = 0
+                        self.refreshPaint()
+                        self.displayTriangles()
+                        self.autoCornerButton.setEnabled(1)
+                        self.resetPointsButton.setEnabled(1)
+                        self.notificationLine.setText(" Successfully confirmed set of added points.")
+                    if self.startingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y():
+                        leftCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.startingImage.geometry().topLeft().x())*self.imageScalar[0]), int((cursor_event.pos().y()-self.startingImage.geometry().topLeft().y())*self.imageScalar[1]))
+                        self.added_left_points.append(leftCoord)
+                        self.refreshPaint()
+                        self.currentWindow = 1
+                        self.persistFlag = 0
+                        self.enableDeletion = 1
+                        self.autoCornerButton.setEnabled(0)
+                        self.notificationLine.setText(" Successfully added left temporary point.")
+                elif self.currentWindow == 1:
+                    if self.endingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y():
+                        rightCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.endingImage.geometry().topLeft().x())*self.imageScalar[0]), int((cursor_event.pos().y()-self.startingImage.geometry().topLeft().y())*self.imageScalar[1]))
+                        self.added_right_points.append(rightCoord)
+                        self.refreshPaint()
+                        self.currentWindow = 0
+                        self.enableDeletion = 1
+                        self.persistFlag = 2
+                        self.notificationLine.setText(" Successfully added right temporary point.")
+                if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)):
+                    if (len(self.chosen_left_points) + len(self.confirmed_left_points)) >= 3:
+                        if (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
+                            self.triangleBox.setEnabled(1)
+                            if self.triangleUpdatePref == 1:
+                                self.triangleUpdate = 1
+                                self.triangleBox.setChecked(1)
+                                self.refreshPaint()
+        else:
+            self.notificationLine.setText(" Images must be the same size before points can be drawn!")
 
     # Very simple function for updating user preference for blending transparency in images
     # (This is disabled by default, as transparency is often unused and reduces performance.)
@@ -903,6 +1024,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         else:
             self.notificationLine.setText(" Generic Catching Error: Image(s) can't be saved..")
 
+    # Function that handles behavior for loading the user's left image
     def loadDataLeft(self):
         filePath, _ = QFileDialog.getOpenFileName(self, caption='Open Starting Image File ...', filter="Images (*.png *.jpg)")
         if not filePath:
@@ -911,76 +1033,36 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.notificationLine.setText(" Left image loaded.")
         self.triangleUpdatePref = int(self.triangleBox.isChecked())
         self.fullBlendComplete = False
+        self.alphaValue.setEnabled(0)
+        self.alphaSlider.setEnabled(0)
+        self.autoCornerButton.setEnabled(0)
+        self.blendButton.setEnabled(0)
         self.triangleBox.setChecked(0)
         self.triangleBox.setEnabled(0)
         self.displayTriangles()
 
-        # self.leftPixmap = QtGui.QPixmap(filePath)
         self.startingImage.setPixmap(QtGui.QPixmap(filePath))
         self.startingImage.setScaledContents(1)
         self.leftSize = (imageio.imread(filePath).shape[1], imageio.imread(filePath).shape[0])
         self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
 
         self.startingImagePath = filePath
-        self.startingTextPath = filePath + '.txt'  # TODO: Change from ".FILETYPE.txt" to "_FILETYPE.txt"
 
-        # Obtain file's name, removing path and extension
-        # Example: C:/Desktop/StartGray1.jpg => StartGray1
-        leftFileRegex = re.search('(?<=[/])[^/]+(?=[.])', filePath)
+        # Obtain file's name and extension
+        self.startingImageName = re.search('(?<=[/])[^/]+(?=[.])', filePath).group()  # Example: C:/Desktop/TestImage.jpg => TestImage
+        self.startingImageType = os.path.splitext(self.startingImagePath)[1]   # Example: C:/Desktop/TestImage.jpg => .jpg
+
+        # Create local path to check for the image's text file
+        # Example: C:/Desktop/TestImage.jpg => C:/Desktop/TestImage-jpg.txt
+        self.startingTextPath = filePath[:-(len(self.startingImageName + self.startingImageType))] + self.startingImageName + '-' + self.startingImageType[1:] + '.txt'
 
         # Now assign file's name to desired path for information storage (appending .txt at the end)
-        # self.startingTextCorePath = 'C:/Users/USER/PycharmProjects/Personal/Morphing/Images_Points/' + leftFileRegex.group() + '.txt'
-        self.startingTextCorePath = os.path.join(ROOT_DIR, 'Images_Points\\' + leftFileRegex.group() + '.txt')
+        # self.startingTextCorePath = 'C:/Users/USER/PycharmProjects/Personal/Morphing/Images_Points/' + 'TestImage' + '-' + 'jpg' + '.txt'
+        self.startingTextCorePath = os.path.join(ROOT_DIR, 'Images_Points\\' + self.startingImageName + '-' + self.startingImageType[1:] + '.txt')
 
-        # If there is already a text file at the location of the selected image, the program assumes that it is what
-        # the user intends to start with and moves it to the desired path for future manipulation.
-        # Otherwise, the program creates an empty file instead.
-        # TODO: Strongly recommend re-writing everything beneath this point
-        if os.path.isfile(self.startingTextPath):
-            copyfile(self.startingTextPath, self.startingTextCorePath)
-        else:
-            if not os.path.exists(os.path.dirname(self.startingTextCorePath)):  # if Images_Points doesn't exist, create it
-                os.makedirs(os.path.dirname(self.startingTextCorePath))
-            open(self.startingTextCorePath, 'a').close()
+        self.checkFiles('loadDataLeft', self.startingTextPath, self.startingTextCorePath)
 
-        self.added_left_points = []
-        self.added_right_points = []
-        self.confirmed_left_points = []
-        self.confirmed_left_points_history = []
-        self.confirmed_right_points = []
-        self.confirmed_right_points_history = []
-        self.chosen_left_points = []
-        # TODO: Consider changing this to "if self.startingTextCorePath is self.startingTextPath, else"
-        if os.path.isfile(self.startingTextCorePath):  # Check new path for text file
-            with open(self.startingTextCorePath, "r") as leftFile:
-                for x in leftFile:
-                    self.chosen_left_points.append(QtCore.QPoint(int(float(x.split()[0])), int(float(x.split()[1]))))
-        elif os.path.isfile(self.startingTextPath):  # Check old path for text file
-            with open(self.startingTextPath, "r") as leftFile:
-                for x in leftFile:
-                    self.chosen_left_points.append(QtCore.QPoint(int(float(x.split()[0])), int(float(x.split()[1]))))
-
-        if os.path.isfile(self.startingTextPath):
-            os.remove(self.startingTextPath)
-
-        if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
-            self.alphaValue.setEnabled(1)
-            self.alphaSlider.setEnabled(1)
-            if self.chosen_left_points != [] and self.chosen_right_points != []:
-                self.resetPointsButton.setEnabled(1)
-            self.autoCornerButton.setEnabled(1)
-
-            # Check that the two images are the same size - if they aren't, the user should be notified that this won't work
-            if self.leftSize[0] == self.rightSize[0] and self.leftSize[1] == self.rightSize[1]:
-                # Check if 3 or more points exist for two corresponding images so that triangles may be displayed
-                if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
-                    self.blendButton.setEnabled(1)
-                    self.triangleBox.setEnabled(1)
-                    self.triangleBox.setChecked(self.triangleUpdatePref)
-            else:
-                self.notificationLine.setText(" Left image loaded - WARNING: Input images must be the same size!")
-        self.displayTriangles()
-
+    # Function that handles behavior for loading the user's right image
     def loadDataRight(self):
         filePath, _ = QFileDialog.getOpenFileName(self, caption='Open Ending Image File ...', filter="Images (*.png *.jpg)")
         if not filePath:
@@ -989,37 +1071,51 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.notificationLine.setText(" Right image loaded.")
         self.triangleUpdatePref = int(self.triangleBox.isChecked())
         self.fullBlendComplete = False
+        self.alphaValue.setEnabled(0)
+        self.alphaSlider.setEnabled(0)
+        self.autoCornerButton.setEnabled(0)
+        self.blendButton.setEnabled(0)
         self.triangleBox.setChecked(0)
         self.triangleBox.setEnabled(0)
         self.displayTriangles()
 
-        # self.rightPixmap = QtGui.QPixmap(filePath)
         self.endingImage.setPixmap(QtGui.QPixmap(filePath))
         self.endingImage.setScaledContents(1)
         self.rightSize = (imageio.imread(filePath).shape[1], imageio.imread(filePath).shape[0])
         self.imageScalar = (self.rightSize[0] / (self.endingImage.geometry().topRight().x() - self.endingImage.geometry().topLeft().x()), self.rightSize[1] / (self.endingImage.geometry().bottomRight().y() - self.endingImage.geometry().topLeft().y()))
 
         self.endingImagePath = filePath
-        self.endingTextPath = filePath + '.txt'
 
-        # Obtain file's name, removing path and extension
-        # Example: C:/Desktop/EndGray1.jpg => EndGray1
-        rightFileRegex = re.search('(?<=[/])[^/]+(?=[.])', filePath)
+        # Obtain file's name and extension
+        self.endingImageName = re.search('(?<=[/])[^/]+(?=[.])', filePath).group()  # Example: C:/Desktop/TestImage.jpg => TestImage
+        self.endingImageType = os.path.splitext(self.endingImagePath)[1]  # Example: C:/Desktop/TestImage.jpg => .jpg
+
+        # Create local path to check for the image's text file
+        # Example: C:/Desktop/TestImage.jpg => C:/Desktop/TestImage-jpg.txt
+        self.endingTextPath = filePath[:-(len(self.endingImageName + self.endingImageType))] + self.endingImageName + '-' + self.endingImageType[1:] + '.txt'
 
         # Now assign file's name to desired path for information storage (appending .txt at the end)
-        # self.endingTextCorePath = 'C:/Users/USER/PycharmProjects/Personal/Morphing/Images_Points/' + rightFileRegex.group() + '.txt'
-        self.endingTextCorePath = os.path.join(ROOT_DIR, 'Images_Points\\' + rightFileRegex.group() + '.txt')
+        # self.endingTextCorePath = 'C:/Users/USER/PycharmProjects/Personal/Morphing/Images_Points/' + 'TestImage' + '-' + 'jpg' + '.txt'
+        self.endingTextCorePath = os.path.join(ROOT_DIR, 'Images_Points\\' + self.endingImageName + '-' + self.endingImageType[1:] + '.txt')
 
+        self.checkFiles('loadDataRight', self.endingTextPath, self.endingTextCorePath)
+
+    # Helper function for loadDataLeft and loadDataRight to reduce duplication of code
+    # Handles text file generation, loads data, and sets flags where appropriate
+    def checkFiles(self, sourceFunc, basePath, rootPath):
         # If there is already a text file at the location of the selected image, the program assumes that it is what
-        # the user intends to start with and moves it to the desired path for future manipulation.
-        # Otherwise, the program creates an empty file instead.
-        # TODO: Strongly recommend re-writing everything beneath this point
-        if os.path.isfile(self.endingTextPath):
-            copyfile(self.endingTextPath, self.endingTextCorePath)
+        # the user intends to start with and moves it to the root path for future manipulation.
+        # Otherwise, the program creates an empty file at the root path instead.
+        if os.path.isfile(basePath):
+            try:
+                shutil.copy(basePath, rootPath)
+                os.remove(basePath)
+            except shutil.SameFileError:
+                pass
         else:
-            if not os.path.exists(os.path.dirname(self.endingTextCorePath)):  # if Images_Points doesn't exist, create it
-                os.makedirs(os.path.dirname(self.endingTextCorePath))
-            open(self.endingTextCorePath, 'a').close()
+            if not os.path.exists(os.path.dirname(rootPath)):  # if Images_Points doesn't exist, create it
+                os.makedirs(os.path.dirname(rootPath))
+            open(rootPath, 'a').close()
 
         self.added_left_points = []
         self.added_right_points = []
@@ -1027,36 +1123,43 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.confirmed_left_points_history = []
         self.confirmed_right_points = []
         self.confirmed_right_points_history = []
-        self.chosen_right_points = []
 
-        if os.path.isfile(self.endingTextCorePath):
-            with open(self.endingTextCorePath, "r") as rightFile:
-                for x in rightFile:
+        with open(rootPath, "r") as textFile:
+            if sourceFunc == 'loadDataLeft':
+                self.chosen_left_points = []
+                for x in textFile:
+                    self.chosen_left_points.append(QtCore.QPoint(int(float(x.split()[0])), int(float(x.split()[1]))))
+            elif sourceFunc == 'loadDataRight':
+                self.chosen_right_points = []
+                for x in textFile:
                     self.chosen_right_points.append(QtCore.QPoint(int(float(x.split()[0])), int(float(x.split()[1]))))
-        elif os.path.isfile(self.endingTextPath):
-            with open(self.endingTextPath, "r") as rightFile:
-                for x in rightFile:
-                    self.chosen_right_points.append(QtCore.QPoint(int(float(x.split()[0])), int(float(x.split()[1]))))
-
-        if os.path.isfile(self.endingTextPath):
-            os.remove(self.endingTextPath)
 
         if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
-            self.alphaValue.setEnabled(1)
-            self.alphaSlider.setEnabled(1)
+            self.resizeLeftButton.setEnabled(1)
+            self.resizeRightButton.setEnabled(1)
             if self.chosen_left_points != [] and self.chosen_right_points != []:
                 self.resetPointsButton.setEnabled(1)
-            self.autoCornerButton.setEnabled(1)
 
             # Check that the two images are the same size - if they aren't, the user should be notified that this won't work
-            if self.leftSize[0] == self.rightSize[0] and self.leftSize[1] == self.rightSize[1]:
+            if self.leftSize == self.rightSize:
+                self.resizeLeftButton.setStyleSheet("")
+                self.resizeRightButton.setStyleSheet("")
                 # Check if 3 or more points exist for two corresponding images so that triangles may be displayed
                 if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
+                    self.alphaValue.setEnabled(1)
+                    self.alphaSlider.setEnabled(1)
+                    self.autoCornerButton.setEnabled(1)
                     self.blendButton.setEnabled(1)
                     self.triangleBox.setEnabled(1)
                     self.triangleBox.setChecked(self.triangleUpdatePref)
+
             else:
-                self.notificationLine.setText(" Right image loaded - WARNING: Input images must be the same size!")
+                self.resizeLeftButton.setStyleSheet("font: bold;")
+                self.resizeRightButton.setStyleSheet("font: bold;")
+                if sourceFunc == 'loadDataLeft':
+                    self.notificationLine.setText(" Left image loaded - WARNING: Input images must be the same size!")
+                elif sourceFunc == 'loadDataRight':
+                    self.notificationLine.setText(" Right image loaded - WARNING: Input images must be the same size!")
         self.displayTriangles()
 
 
