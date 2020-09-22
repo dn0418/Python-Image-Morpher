@@ -50,9 +50,9 @@ python get-pip.py
 - When satisfied, click on blend and observe the result!
 
 <p align="center">
-  <img src="https://media3.giphy.com/media/YNEHyQ5TI6NankGbA9/giphy.gif"><br>
+  <img src="https://i.imgur.com/j7JStm4.gif"><br>
 </p>
-<p align="center"><i>Proof of Concept for Perspective Shifting</i><p align="center">
+<p align="center"><i>Proof of Concept - Perspective Shifting</i><p align="center">
 
 ## Development 'To-Do' List:
 - Redo / CTRL + Y (User may redo an action that was previously undone or deleted)
