@@ -1,4 +1,4 @@
-# Version 0.3.0.0 - (2020-11-XX)
+# Version 0.3.0.0 - (2020-11-21)
 ## Known Bugs
 - The GUI can sometimes become unresponsive during morphing calculations (but eventually returns to normal)
     - QtCore.QCoreApplication.processEvents() is a potential workaround but currently produces buggy results
