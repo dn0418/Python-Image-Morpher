@@ -1,3 +1,41 @@
+# Version 0.3.0.0 - (2020-11-XX)
+## Known Bugs
+- The GUI can sometimes become unresponsive during morphing calculations (but eventually returns to normal)
+    - QtCore.QCoreApplication.processEvents() is a potential workaround but currently produces buggy results
+
+## Unreleased
+- <b>Image Zoom</b>
+    - The user may right click on an image to zoom in and out of it to place more accurate points
+    - Comment: <i>Currently, image zoom functionality has been (somewhat) implemented but point placement will require additional changes.</i>
+    
+## Added
+- <b>Freestyle Point Placement</b> - Gone are the days where point pairs had to begin with the left image!
+    - QoL: The user can now place point pairs on the images in whatever order they wish
+    - Keyboard/mouse input logic has been rewritten to maintain previous behavior with Undo, Delete, OUT, etc.
+- <b>Redo (CTRL+Y) Functionality</b> 
+    - The user may now redo any point placement that was previously undone or deleted
+        - Points are recovered in the order they were undone or deleted
+        - The cache is cleared whenever a new point is placed by the user
+        
+## Changes
+- Added logging that was previously missing from MorphingApp.py's Undo logic
+- Polished the string comparator found in MorphingApp.py's <b>gifTextDone()</b>
+- Optimized out ~34 SLOC from the Undo logic found in MorphingApp.py's <b>keyPressEvent()</b>
+- Optimized out ~25 SLOC from MorphingApp.py's <b>displayTriangles()</b> where Morphing.py's <b>loadTriangles()</b> should have been used
+- Triangle display behavior during MorphingApp.py's <b>mousePressEvent()</b> has been further consolidated and streamlined
+- To accommodate this update, all instances of <b>self.currentWindow</b> have been removed
+    - Since much of <b>mousePressEvent()</b> and <b>keyPressEvent()</b> depended on this variable, these methods have been changed accordingly
+    - Comment: <i>The 'current window' variable was unintuitive legacy code written to get a working prototype out and, therefore, has not been very maintainable.
+    This update replaces it with a much more useful <b>self.clicked_window_history</b>, it's spiritual successor!</i>
+- All instances of <b>self.persistFlag</b> have been removed
+    - Comment: <i>More unintuitive legacy code. Since this variable is no longer used - and to improve maintainability - it is being removed.</i>
+- All instances of <b>self.confirmed_left_points_history</b> and <b>self.confirmed_right_points_history</b> have been removed
+    - Comment: <i>These were placeholders for prototyping redo functionality a while back - this is now handled by <b>self.placed_points_history</b>.</i>
+
+## Fixes
+- Fixed a bug where the alpha slider and auto-corner button were not enabling when new images were loaded
+    - Comment: <i>Just an oversight that spawned from the changes to the image loading methods in v0.2.9.0</i>
+
 # Version 0.2.9.0 - (2020-09-05)
 #### Note: Since I am taking up a software developer role next week, releases are going to slow down for the foreseeable future.
 ## Known Bugs

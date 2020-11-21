@@ -55,10 +55,12 @@ python get-pip.py
 <p align="center"><i>Proof of Concept - Perspective Shifting</i><p align="center">
 
 ## Development 'To-Do' List:
-- Redo / CTRL + Y (User may redo an action that was previously undone or deleted)
-- Image Zoom (User may click the right mouse button on an image to toggle zoom into it in order to place more accurate points)
-- Freestyle Point Placement (User may begin point pairs with either the left or right image, as opposed to only the left)
-- Improved Performance (Currently, interpolation is the biggest bottleneck, second to the required matrix math)
+- <b>Feature:</b> Image Zoom 
+    - User may click the right mouse button on an image to zoom in for more accurate point placement
+- <b>Change:</b> Improved Morphing Performance
+    - Currently, interpolation is the biggest bottleneck, second to the required matrix math
+- <b>Fix:</b> Improved Image Interpolation
+    - Hot pixels can appear in blends - this is a complicated issue (being implicitly tied to performance) and is mentioned [here](https://github.com/ddowd97/Morphing/issues/2)
 
 If you encounter an error, a bug, or if you simply wish to request a change/feature, please file an issue using the tracker that GitHub provides, [here](https://github.com/ddowd97/Morphing/issues).
 

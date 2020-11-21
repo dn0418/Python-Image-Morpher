@@ -37,8 +37,8 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.added_right_points = []                                            # List used to store temporary points added in current session (RIGHT)
         self.confirmed_left_points = []                                         # List used to store existing points confirmed in current session (LEFT)
         self.confirmed_right_points = []                                        # List used to store existing points confirmed in current session (RIGHT)
-        self.confirmed_left_points_history = []                                 # List used to log all points confirmed during this session for CTRL + Y (LEFT)
-        self.confirmed_right_points_history = []                                # List used to log all points confirmed during this session for CTRL + Y (RIGHT)
+        self.placed_points_history = []                                         # List used to log recent points placed during this session for CTRL + Y
+        self.clicked_window_history = [-1]                                      # List used to log the order in which the image windows have been clicked - functions as a "stack"
         self.leftPolyList = []                                                  # List used to store delaunay triangles (LEFT)
         self.rightPolyList = []                                                 # List used to store delaunay triangles (RIGHT)
         self.blendList = []                                                     # List used to store a variable amount of alpha increment frames for full blending
@@ -55,9 +55,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.startingImageType = ''                                             # String used to store the left image's file type
         self.endingImageType = ''                                               # String used to store the right image's file type
 
-        self.currentWindow = 0                                                  # Flag used to indicate which image will accept the next mouse click for creating points
         self.enableDeletion = 0                                                 # Flag used to indicate whether the most recently created point can be deleted with Backspace
-        self.persistFlag = 0                                                    # Flag used to indicate how points are created during a mouse click event (LEGACY)
         self.triangleUpdate = 0                                                 # Flag used to indicate whether triangles need to be repainted (or removed) in the next paint event
         self.triangleUpdatePref = 0                                             # Flag used to remember whether the user wants to display triangles (in the case that they are forced off)
         self.imageScalar = 0                                                    # Value used to scale created points to where they visually line up with the original images
@@ -124,8 +122,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     # QoL function that removes focus from the gif text window when the user presses Enter.
     # Additionally verifies the user's specified gif frame time value.
     def gifTextDone(self):
-        # Obviously there is probably a more professional way of writing this conditional  but for now, it's fine.
-        if self.gifText.text() == ' ms' or self.gifText.text() == '  ms' or self.gifText.text() == '   ms' or self.gifText.text() == '    ms':
+        if self.gifText.text().strip() == 'ms':
             self.gifValue = 100
             self.gifText.setText("100 ms")
         else:
@@ -202,9 +199,9 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             if tempLeft[i] not in self.confirmed_left_points and tempLeft[i] not in self.chosen_left_points and tempRight[i] not in self.confirmed_right_points and tempRight[i] not in self.chosen_right_points:
                 counter += 1
                 self.confirmed_left_points.append(tempLeft[i])
-                self.confirmed_left_points_history.append(tempLeft[i])
                 self.confirmed_right_points.append(tempRight[i])
-                self.confirmed_right_points_history.append(tempRight[i])
+                self.clicked_window_history.append(0)
+                self.clicked_window_history.append(1)
 
                 with open(self.startingTextCorePath, "a") as startingFile:
                     if not os.stat(self.startingTextCorePath).st_size:  # left file is empty
@@ -227,9 +224,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         else:
             self.notificationLine.setText(" Failed to add any new corner points.")
 
-        self.currentWindow = 0
         self.enableDeletion = 0
-        self.persistFlag = 2
         self.displayTriangles()
         self.triangleBox.setChecked(self.triangleUpdatePref)
         self.blendButton.setEnabled(1)
@@ -260,8 +255,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             os.remove(self.endingTextCorePath)
 
         self.enableDeletion = 0
-        self.persistFlag = 0
-        self.currentWindow = 0
         self.refreshPaint()
 
         self.notificationLine.setText(" Successfully reset points.")
@@ -348,113 +341,123 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         if type(key_event) == QtGui.QKeyEvent and key_event.modifiers() == QtCore.Qt.ControlModifier and key_event.key() == QtCore.Qt.Key_Z:
             undoFlag = 0
             if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
-                if self.enableDeletion == 1:
-                    if self.currentWindow == 0 and self.added_left_points != []:
-                        self.added_right_points.pop(len(self.added_right_points)-1)
-                        self.currentWindow = 1
-                        self.persistFlag = 0
-                        self.refreshPaint()
-                        undoFlag = 1
-                    elif self.currentWindow == 1:
-                        self.added_left_points.pop(len(self.added_left_points) - 1)
-                        self.currentWindow = 0
-                        self.enableDeletion = 0
-                        self.persistFlag = 0
-                        self.refreshPaint()
-                        self.autoCornerButton.setEnabled(1)
-                        undoFlag = 1
-                    elif self.confirmed_left_points != [] and self.confirmed_right_points != []:
-                        self.confirmed_left_points.pop(len(self.confirmed_left_points) - 1)
-                        self.confirmed_right_points.pop(len(self.confirmed_right_points) - 1)
-                        data1 = open(self.startingTextCorePath, 'r').readlines()
-                        del data1[-1]
-                        if data1:
-                            data1[-1] = data1[-1][0:int(len(data1[-1]) - 1)]  # Remove \n from the previously second to last line
-                            open(self.startingTextCorePath, 'w').writelines(data1)
-                        else:
-                            os.remove(self.startingTextCorePath)
-                        data2 = open(self.endingTextCorePath, 'r').readlines()
-                        del data2[-1]
-                        if data2:
-                            data2[-1] = data2[-1][0:int(len(data2[-1]) - 1)]  # Remove \n from the previously second to last line
-                            open(self.endingTextCorePath, 'w').writelines(data2)
-                        else:
-                            os.remove(self.endingTextCorePath)
-                        # self.currentWindow = 0
-                        self.enableDeletion = 0
-                        self.persistFlag = 0
-                        if len(self.chosen_left_points) + len(self.confirmed_left_points) >= 3:
-                            self.displayTriangles()
-                            self.blendButton.setEnabled(1)
-                        else:
-                            self.triangleUpdatePref = int(self.triangleBox.isChecked())
-                            self.triangleBox.setChecked(0)
-                            self.triangleBox.setEnabled(0)
-                            self.blendButton.setEnabled(0)
-                            self.displayTriangles()
-                            if len(self.chosen_left_points) + len(self.confirmed_left_points) == 0:
-                                self.resetPointsButton.setEnabled(0)
-                        self.refreshPaint()
-                        undoFlag = 1
-                else:
-                    if self.confirmed_left_points != [] and self.confirmed_right_points != []:
-                        self.confirmed_left_points.pop(len(self.confirmed_left_points) - 1)
-                        self.confirmed_right_points.pop(len(self.confirmed_right_points) - 1)
-                        data1 = open(self.startingTextCorePath, 'r').readlines()
-                        del data1[-1]
-                        if data1:
-                            data1[-1] = data1[-1][0:int(len(data1[-1]) - 1)]
-                            open(self.startingTextCorePath, 'w').writelines(data1)
-                        else:
-                            os.remove(self.startingTextCorePath)
-                        data2 = open(self.endingTextCorePath, 'r').readlines()
-                        del data2[-1]
-                        if data2:
-                            data2[-1] = data2[-1][0:int(len(data2[-1]) - 1)]
-                            open(self.endingTextCorePath, 'w').writelines(data2)
-                        else:
-                            os.remove(self.endingTextCorePath)
-                        self.currentWindow = 0
-                        self.enableDeletion = 0
-                        self.persistFlag = 0
+                if self.clicked_window_history[-1] == 1 and len(self.added_right_points) > 0:
+                    rightPoint = self.added_right_points.pop(len(self.added_right_points)-1)
+                    self.placed_points_history.append([rightPoint, self.clicked_window_history.pop()])
+                    self.refreshPaint()
+                    undoFlag = 1
+                    self.notificationLine.setText(" Removed right temporary point!")
+                elif self.clicked_window_history[-1] == 0 and len(self.added_left_points) > 0:
+                    leftPoint = self.added_left_points.pop(len(self.added_left_points) - 1)
+                    self.placed_points_history.append([leftPoint, self.clicked_window_history.pop()])
+                    self.refreshPaint()
+                    undoFlag = 1
+                    self.notificationLine.setText(" Removed left temporary point!")
+                elif self.confirmed_left_points != [] and self.confirmed_right_points != []:
+                    leftPoint = self.confirmed_left_points.pop(len(self.confirmed_left_points) - 1)
+                    rightPoint = self.confirmed_right_points.pop(len(self.confirmed_right_points) - 1)
+                    self.clicked_window_history.pop()
+                    self.clicked_window_history.pop()
+                    self.placed_points_history.append((leftPoint, rightPoint))
 
-                        if len(self.chosen_left_points) + len(self.confirmed_left_points) >= 3:
-                            self.displayTriangles()
-                            self.blendButton.setEnabled(1)
-                        else:
-                            self.triangleUpdatePref = int(self.triangleBox.isChecked())
-                            self.triangleBox.setChecked(0)
-                            self.triangleBox.setEnabled(0)
-                            self.blendButton.setEnabled(0)
-                            self.displayTriangles()
-                            if len(self.chosen_left_points) + len(self.confirmed_left_points) == 0:
-                                self.resetPointsButton.setEnabled(0)
-                        self.refreshPaint()
-                        undoFlag = 1
+                    data1 = open(self.startingTextCorePath, 'r').readlines()
+                    del data1[-1]
+                    if data1:
+                        data1[-1] = data1[-1][0:int(len(data1[-1]) - 1)]  # Remove \n from the previously second to last line
+                        open(self.startingTextCorePath, 'w').writelines(data1)
+                    else:
+                        os.remove(self.startingTextCorePath)
+                    data2 = open(self.endingTextCorePath, 'r').readlines()
+                    del data2[-1]
+                    if data2:
+                        data2[-1] = data2[-1][0:int(len(data2[-1]) - 1)]  # Remove \n from the previously second to last line
+                        open(self.endingTextCorePath, 'w').writelines(data2)
+                    else:
+                        os.remove(self.endingTextCorePath)
+
+                    if len(self.chosen_left_points) + len(self.confirmed_left_points) >= 3:
+                        self.displayTriangles()
+                        self.blendButton.setEnabled(1)
+                    else:
+                        self.triangleUpdatePref = int(self.triangleBox.isChecked())
+                        self.triangleBox.setChecked(0)
+                        self.triangleBox.setEnabled(0)
+                        self.blendButton.setEnabled(0)
+                        self.displayTriangles()
+                        if len(self.chosen_left_points) + len(self.confirmed_left_points) == 0:
+                            self.resetPointsButton.setEnabled(0)
+                    self.refreshPaint()
+                    undoFlag = 1
+                    self.notificationLine.setText(" Removed confirmed point pair!")
+            self.autoCornerButton.setEnabled(len(self.added_left_points) == len(self.added_right_points) == 0)
             if undoFlag == 0:
                 self.notificationLine.setText(" Can't undo!")
 
         # Redo
         elif type(key_event) == QtGui.QKeyEvent and key_event.modifiers() == QtCore.Qt.ControlModifier and key_event.key() == QtCore.Qt.Key_Y:
-            self.notificationLine.setText(" This hasn't been implemented yet. ;)")
+            if not len(self.placed_points_history) > 0:
+                self.notificationLine.setText(" Can't redo!")
+                return
+
+            recoveredData = self.placed_points_history.pop()
+            if type(recoveredData) is list:  # Restore added point
+                if recoveredData[1] == 0:
+                    self.added_left_points.append(recoveredData[0])
+                    self.clicked_window_history.append(0)
+                    self.notificationLine.setText(" Recovered left temporary point!")
+                elif recoveredData[1] == 1:
+                    self.added_right_points.append(recoveredData[0])
+                    self.clicked_window_history.append(1)
+                    self.notificationLine.setText(" Recovered right temporary point!")
+                self.refreshPaint()
+                self.enableDeletion = 1
+                self.autoCornerButton.setEnabled(0)
+            elif type(recoveredData) is tuple:  # Restore confirmed point pair
+                self.confirmed_left_points.append(recoveredData[0])
+                self.confirmed_right_points.append(recoveredData[1])
+                self.clicked_window_history.append(0)
+                self.clicked_window_history.append(1)
+
+                with open(self.startingTextCorePath, "a") as startingFile:
+                    if not os.stat(self.startingTextCorePath).st_size:  # left file is empty
+                        startingFile.write('{:>8}{:>8}'.format(
+                            str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].x(), ".1f")),
+                            str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].y(), ".1f"))))
+                    else:
+                        startingFile.write('\n{:>8}{:>8}'.format(
+                            str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].x(), ".1f")),
+                            str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].y(), ".1f"))))
+                with open(self.endingTextCorePath, "a") as endingFile:
+                    if not os.stat(self.endingTextCorePath).st_size:  # right file is empty
+                        endingFile.write('{:>8}{:>8}'.format(
+                            str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].x(), ".1f")),
+                            str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].y(), ".1f"))))
+                    else:
+                        endingFile.write('\n{:>8}{:>8}'.format(
+                            str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].x(), ".1f")),
+                            str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].y(), ".1f"))))
+                self.refreshPaint()
+                self.displayTriangles()
+                self.autoCornerButton.setEnabled(1)
+                self.resetPointsButton.setEnabled(1)
+                self.notificationLine.setText(" Recovered confirmed point pair!")
+
         # Delete recent temp
         elif type(key_event) == QtGui.QKeyEvent and key_event.key() == QtCore.Qt.Key_Backspace:
             if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents() and self.enableDeletion == 1:
-                if self.currentWindow == 0 and self.added_left_points != []:
-                    self.added_right_points.pop(len(self.added_right_points)-1)
+                if self.clicked_window_history[-1] == 1 and len(self.added_right_points) > 0:
+                    rightPoint = self.added_right_points.pop(len(self.added_right_points)-1)
+                    self.placed_points_history.append([rightPoint, self.clicked_window_history.pop()])
                     self.enableDeletion = 0
-                    self.currentWindow = 1
-                    self.persistFlag = 0
                     self.refreshPaint()
                     self.notificationLine.setText(" Successfully deleted recent temporary point.")
-                elif self.currentWindow == 1:
-                    self.added_left_points.pop(len(self.added_left_points)-1)
-                    self.currentWindow = 0
+                elif self.clicked_window_history[-1] == 0 and len(self.added_left_points) > 0:
+                    leftPoint = self.added_left_points.pop(len(self.added_left_points)-1)
+                    self.placed_points_history.append([leftPoint, self.clicked_window_history.pop()])
                     self.enableDeletion = 0
-                    self.persistFlag = 0
                     self.refreshPaint()
-                    self.autoCornerButton.setEnabled(1)
                     self.notificationLine.setText(" Successfully deleted recent temporary point.")
+                self.autoCornerButton.setEnabled(len(self.added_left_points) == len(self.added_right_points) == 0)
 
     # Function override of the window resize event. Fairly lightweight.
     # Currently just recalculates the necessary scalar value to keep image displays and point placements accurate.
@@ -574,69 +577,83 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
 
     # Function that handles GUI and file behavior when the mouse is clicked.
     def mousePressEvent(self, cursor_event):
+        # # Prototype RMB Zoom Behavior
+        # if cursor_event.button() == QtCore.Qt.RightButton:
+        #     # RMB was clicked inside left image
+        #     if self.startingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.startingImage.geometry().bottomRight().y() and len(self.added_left_points) == 0:
+        #         if self.startingImage.hasScaledContents():
+        #             self.notificationLine.setText(" Zoomed in on left image.")
+        #             self.startingImage.setScaledContents(0)
+        #             self.startingImage.setPixmap(QtGui.QPixmap(self.startingImagePath).scaled(int(self.leftSize[0] * 3), int(self.leftSize[1] * 3), QtCore.Qt.IgnoreAspectRatio, QtCore.Qt.FastTransformation))
+        #         else:
+        #             self.notificationLine.setText(" Zoomed out of left image.")
+        #             self.startingImage.setScaledContents(1)
+        #     # RMB was clicked inside right image
+        #     elif self.endingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() and self.endingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y() and len(self.added_right_points) == 0:
+        #         if self.endingImage.hasScaledContents():
+        #             self.notificationLine.setText(" Zoomed in on right image.")
+        #             self.endingImage.setScaledContents(0)
+        #             self.endingImage.setPixmap(QtGui.QPixmap(self.endingImagePath).scaled(int(self.rightSize[0] * 3), int(self.rightSize[1] * 3), QtCore.Qt.IgnoreAspectRatio, QtCore.Qt.FastTransformation))
+        #         else:
+        #             self.notificationLine.setText(" Zoomed out of right image.")
+        #             self.endingImage.setScaledContents(1)
+        #     return
+
         if self.leftSize == self.rightSize:
             self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
 
             if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
+                # If there are a set of points to confirm
+                if len(self.added_left_points) == len(self.added_right_points) == 1:
+                    self.placed_points_history.clear()
+                    throwawayLeft = self.added_left_points.pop(len(self.added_left_points)-1)
+                    throwawayRight = self.added_right_points.pop(len(self.added_right_points)-1)
+                    self.confirmed_left_points.append(throwawayLeft)
+                    self.confirmed_right_points.append(throwawayRight)
+                    with open(self.startingTextCorePath, "a") as startingFile:
+                        if not os.stat(self.startingTextCorePath).st_size:  # left file is empty
+                            startingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].y(), ".1f"))))
+                        else:
+                            startingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].y(), ".1f"))))
+                    with open(self.endingTextCorePath, "a") as endingFile:
+                        if not os.stat(self.endingTextCorePath).st_size:  # right file is empty
+                            endingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].y(), ".1f"))))
+                        else:
+                            endingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].y(), ".1f"))))
+                    self.refreshPaint()
+                    self.displayTriangles()
+                    self.autoCornerButton.setEnabled(1)
+                    self.resetPointsButton.setEnabled(1)
+                    self.notificationLine.setText(" Successfully confirmed set of added points.")
+                # Mouse was clicked inside left image
+                if self.startingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.startingImage.geometry().bottomRight().y() and len(self.added_left_points) == 0:
+                    self.placed_points_history.clear()
+                    leftCoord = QtCore.QPoint(int((cursor_event.pos().x() - self.startingImage.geometry().topLeft().x()) * self.imageScalar[0]), int((cursor_event.pos().y() - self.startingImage.geometry().topLeft().y()) * self.imageScalar[1]))
+                    self.added_left_points.append(leftCoord)
+                    self.refreshPaint()
+                    self.clicked_window_history.append(0)
+                    self.enableDeletion = 1
+                    self.autoCornerButton.setEnabled(0)
+                    self.notificationLine.setText(" Successfully added left temporary point.")
+                # Mouse was clicked inside right image
+                elif self.endingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() and self.endingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y() and len(self.added_right_points) == 0:
+                    self.placed_points_history.clear()
+                    rightCoord = QtCore.QPoint(int((cursor_event.pos().x() - self.endingImage.geometry().topLeft().x()) * self.imageScalar[0]), int((cursor_event.pos().y() - self.startingImage.geometry().topLeft().y()) * self.imageScalar[1]))
+                    self.added_right_points.append(rightCoord)
+                    self.refreshPaint()
+                    self.clicked_window_history.append(1)
+                    self.enableDeletion = 1
+                    self.notificationLine.setText(" Successfully added right temporary point.")
+
                 # Check if 3 or more points exist for two corresponding images so that triangles may be displayed
-                if (len(self.added_left_points) + len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.added_left_points) + len(self.chosen_left_points) + len(self.confirmed_left_points)) >= 3:
-                    if self.currentWindow == 0:
-                        self.triangleBox.setEnabled(1)
-                        self.blendButton.setEnabled(1)
-                        if self.triangleUpdatePref == 1:
-                            self.triangleUpdate = 1
-                            self.triangleBox.setChecked(1)
-                            self.refreshPaint()
-                if self.currentWindow == 0:
-                    if not (self.endingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y()) and self.added_right_points != [] and self.persistFlag == 2:
-                        throwawayLeft = self.added_left_points.pop(len(self.added_left_points)-1)
-                        throwawayRight = self.added_right_points.pop(len(self.added_right_points)-1)
-                        self.confirmed_left_points.append(throwawayLeft)
-                        self.confirmed_left_points_history.append(throwawayLeft)
-                        self.confirmed_right_points.append(throwawayRight)
-                        self.confirmed_right_points_history.append(throwawayRight)
-                        with open(self.startingTextCorePath, "a") as startingFile:
-                            if not os.stat(self.startingTextCorePath).st_size:  # left file is empty
-                                startingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].y(), ".1f"))))
-                            else:
-                                startingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].y(), ".1f"))))
-                        with open(self.endingTextCorePath, "a") as endingFile:
-                            if not os.stat(self.endingTextCorePath).st_size:  # right file is empty
-                                endingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].y(), ".1f"))))
-                            else:
-                                endingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].y(), ".1f"))))
-                        self.persistFlag = 0
+                if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
+                    self.triangleBox.setEnabled(1)
+                    self.blendButton.setEnabled(1)
+                    if self.triangleUpdatePref == 1:
+                        self.triangleUpdate = 1
+                        self.triangleBox.setChecked(1)
                         self.refreshPaint()
                         self.displayTriangles()
-                        self.autoCornerButton.setEnabled(1)
-                        self.resetPointsButton.setEnabled(1)
-                        self.notificationLine.setText(" Successfully confirmed set of added points.")
-                    if self.startingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y():
-                        leftCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.startingImage.geometry().topLeft().x())*self.imageScalar[0]), int((cursor_event.pos().y()-self.startingImage.geometry().topLeft().y())*self.imageScalar[1]))
-                        self.added_left_points.append(leftCoord)
-                        self.refreshPaint()
-                        self.currentWindow = 1
-                        self.persistFlag = 0
-                        self.enableDeletion = 1
-                        self.autoCornerButton.setEnabled(0)
-                        self.notificationLine.setText(" Successfully added left temporary point.")
-                elif self.currentWindow == 1:
-                    if self.endingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y():
-                        rightCoord = QtCore.QPoint(int((cursor_event.pos().x()-self.endingImage.geometry().topLeft().x())*self.imageScalar[0]), int((cursor_event.pos().y()-self.startingImage.geometry().topLeft().y())*self.imageScalar[1]))
-                        self.added_right_points.append(rightCoord)
-                        self.refreshPaint()
-                        self.currentWindow = 0
-                        self.enableDeletion = 1
-                        self.persistFlag = 2
-                        self.notificationLine.setText(" Successfully added right temporary point.")
-                if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)):
-                    if (len(self.chosen_left_points) + len(self.confirmed_left_points)) >= 3:
-                        if (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
-                            self.triangleBox.setEnabled(1)
-                            if self.triangleUpdatePref == 1:
-                                self.triangleUpdate = 1
-                                self.triangleBox.setChecked(1)
-                                self.refreshPaint()
         else:
             self.notificationLine.setText(" Images must be the same size before points can be drawn!")
 
@@ -664,7 +681,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     # (While it is applied during every blend, smoothing is disabled by default and can be visibly toggled at any time)
     def smoothBoxUpdate(self):
         if self.blendingImage.hasScaledContents():
-            if self.fullBlendComplete:     # If it's a full blend
+            if self.fullBlendComplete:  # If it's a full blend
                 value_num = ((self.alphaSlider.value() / self.alphaSlider.maximum()) / self.fullBlendValue) * self.fullBlendValue
                 if self.smoothingBox.isChecked():
                     temp = self.smoothList[round(value_num / self.fullBlendValue)]
@@ -701,32 +718,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 # self.triangleBox.setCheckState(2)
                 if os.path.exists(self.startingTextCorePath) and os.path.exists(self.endingTextCorePath):
                     self.updateTriangleWidget(1)
-                    leftList = []
-                    rightList = []
-
-                    with open(self.startingTextCorePath, "r") as leftFile:
-                        for j in leftFile:
-                            leftList.append(j.split())
-                    with open(self.endingTextCorePath, "r") as rightFile:
-                        for k in rightFile:
-                            rightList.append(k.split())
-
-                    leftArray = np.array(leftList, np.float64)
-                    rightArray = np.array(rightList, np.float64)
-                    leftTri = Delaunay(leftArray)
-                    rightTri = leftTri
-                    rightTri.vertices = rightList
-
-                    leftNP = np.array(leftArray[leftTri.simplices], np.float64)
-                    rightNP = np.array(rightArray[rightTri.simplices], np.float64)
-
-                    leftTriList = []
-                    rightTriList = []
-
-                    for x in leftNP:
-                        leftTriList.append(Triangle(x))
-                    for y in rightNP:
-                        rightTriList.append(Triangle(y))
+                    leftTriList, rightTriList = loadTriangles(self.startingTextCorePath, self.endingTextCorePath)
 
                     self.leftPolyList = []
                     self.rightPolyList = []
@@ -1120,9 +1112,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.added_left_points = []
         self.added_right_points = []
         self.confirmed_left_points = []
-        self.confirmed_left_points_history = []
         self.confirmed_right_points = []
-        self.confirmed_right_points_history = []
 
         with open(rootPath, "r") as textFile:
             if sourceFunc == 'loadDataLeft':
@@ -1144,11 +1134,11 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             if self.leftSize == self.rightSize:
                 self.resizeLeftButton.setStyleSheet("")
                 self.resizeRightButton.setStyleSheet("")
+                self.alphaValue.setEnabled(1)
+                self.alphaSlider.setEnabled(1)
+                self.autoCornerButton.setEnabled(1)
                 # Check if 3 or more points exist for two corresponding images so that triangles may be displayed
                 if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
-                    self.alphaValue.setEnabled(1)
-                    self.alphaSlider.setEnabled(1)
-                    self.autoCornerButton.setEnabled(1)
                     self.blendButton.setEnabled(1)
                     self.triangleBox.setEnabled(1)
                     self.triangleBox.setChecked(self.triangleUpdatePref)
