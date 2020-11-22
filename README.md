@@ -22,7 +22,11 @@ This project began in Spring 2019 (detailed in <b>readme_general.pdf</b>, <b>rea
 </p>
 
 ## Installation:
-This program has dependencies that do not come packaged with Python 3.8. For each module below that your machine does not have installed, enter the respective command using the terminal supplied by Windows or your choice of IDE (such as PyCharm).
+This program has dependencies that do not come packaged with Python 3. To install the required modules, enter the following command using the terminal supplied by Windows or your choice of IDE (such as PyCharm):
+
+```pip install -r requirements.txt```
+
+Alternatively, for each module below that your machine does not have installed, enter the respective command(s):
 
 <b>PyQt5</b> - ```pip install pyqt5```
 
