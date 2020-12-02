@@ -1,3 +1,14 @@
+# Version 0.3.0.1 - (2020-12-01)
+## Fixes
+- Fixed a long-standing bug where hot pixels frequently appeared in blended images [[before](https://i.imgur.com/W8RniY5.jpg) and [after](https://i.imgur.com/B5dLjRn.jpg)]
+    - Comment: <i>While researching 2D interpolation methods in Python for what feels like the hundredth time (and still concluding that
+    RectBivariateSpline is apparently the best method I can use), I noticed the optional 'kx' and 'ky' parameters that this method supports.
+    Naturally, the [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.RectBivariateSpline.html) on them
+    isn't very helpful (and honestly, I'm too lazy to put my computer engineering hat back on to understand what [Wikipedia](https://en.wikipedia.org/wiki/Spline_(mathematics))
+    makes of them), but it does mention that the default value for each parameter is 3 degrees.. which got me thinking that a change here could lead
+    to a potential performance improvement for PIM! In an unexpected turn of events, from what I can tell, setting 'kx' and 'ky' to 1 completely removes ALL 
+    hot/dead pixels that were appearing during interpolation. As a bonus, it also gives a 1-2% performance improvement based on surface level analysis.. win-win.</i>
+
 # Version 0.3.0.0 - (2020-11-21)
 ## Known Bugs
 - The GUI can sometimes become unresponsive during morphing calculations (but eventually returns to normal)

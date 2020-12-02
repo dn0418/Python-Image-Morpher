@@ -97,8 +97,8 @@ class Morpher:
         self.leftTriangles = leftTriangles  # Not of type np.uint8
         self.rightImage = copy.deepcopy(rightImage)
         self.rightTriangles = rightTriangles  # Not of type np.uint8
-        self.leftInterpolation = RectBivariateSpline(np.arange(self.leftImage.shape[0]), np.arange(self.leftImage.shape[1]), self.leftImage)
-        self.rightInterpolation = RectBivariateSpline(np.arange(self.rightImage.shape[0]), np.arange(self.rightImage.shape[1]), self.rightImage)
+        self.leftInterpolation = RectBivariateSpline(np.arange(self.leftImage.shape[0]), np.arange(self.leftImage.shape[1]), self.leftImage, kx=1, ky=1)
+        self.rightInterpolation = RectBivariateSpline(np.arange(self.rightImage.shape[0]), np.arange(self.rightImage.shape[1]), self.rightImage, kx=1, ky=1)
 
 
     def getImageAtAlpha(self, alpha, smoothMode):

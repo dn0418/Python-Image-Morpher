@@ -61,10 +61,10 @@ python get-pip.py
 ## Development 'To-Do' List:
 - <b>Feature:</b> Image Zoom 
     - User may click the right mouse button on an image to zoom in for more accurate point placement
+- <b>Feature:</b> Automatic Correspondence Determination
+    - User may click a button to have PIM automatically generate points by scanning for similar features between images
 - <b>Change:</b> Improved Morphing Performance
     - Currently, interpolation is the biggest bottleneck, second to the required matrix math
-- <b>Fix:</b> Improved Image Interpolation
-    - Hot pixels can appear in blends - this is a complicated issue (being implicitly tied to performance) and is mentioned [here](https://github.com/ddowd97/Morphing/issues/2)
 
 If you encounter an error, a bug, or if you simply wish to request a change/feature, please file an issue using the tracker that GitHub provides, [here](https://github.com/ddowd97/Morphing/issues).
 
