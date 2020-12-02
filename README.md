@@ -62,7 +62,7 @@ python get-pip.py
 - <b>Feature:</b> Image Zoom 
     - User may click the right mouse button on an image to zoom in for more accurate point placement
 - <b>Feature:</b> Automatic Correspondence Determination
-    - User may click a button to have PIM automatically generate points by scanning for similar features between images
+    - User may have PIM automatically generate points by scanning for similar features between images
 - <b>Change:</b> Improved Morphing Performance
     - Currently, interpolation is the biggest bottleneck, second to the required matrix math
 
