@@ -1,4 +1,4 @@
-# Version 0.3.1.0 - (2020-12-13)
+# Version 1.0.0 - <i> Finally! </i> - (2020-12-13)
 ## Known Bugs
 - The GUI can sometimes become unresponsive during morphing calculations (but eventually returns to normal)
     - QtCore.QCoreApplication.processEvents() is a potential workaround but currently produces buggy results
@@ -12,11 +12,15 @@
 ## Removed
 - As of v0.3.0.1's hot pixel fix, PIM's image smoothing feature is deprecated and will now be removed
     - Removed Morphing.py's <b>smoothBlend()</b> method as well as the "smoothMode" parameter in <b>getImageAtAlpha()</b>
+    - Removed Morphing.py's sub-module import for SciPy's <i>median_filter</i>
     - Removed all code related to smoothing in MorphingApp.py (a reduction of 77 SLOC)
     - Removed <b>self.smoothingBox</b> from MorphingGUI.ui and MorphingGUI.py
         - Comment: <i>It's likely that this checkbox will be replaced with an automatic correspondence button at some point.</i>
 
 ## Changes
+- Improved morphing performance (a huge <b>90%</b> speedup) by modifying Morphing.py's implementation of <b>getPoints()</b> as well as tweaking
+  <b>interpolatePoints()</b> to utilize RectBivariateSpline's .ev() method instead of manually interpolating the image data
+  - <b>Huge thanks to GitHub user [zhifeichen097](https://github.com/zhifeichen097) for his source code which can be found [here](https://github.com/zhifeichen097/Image-Morphing) - excellent work!</b>
 - Optimized the conditional logic found in MorphingApp.py's <b>displayTriangles()</b>
 - Optimized a query in Morphing.py's <b>getPoints()</b>
   - "np.where(np.array(mask) == True)" → "np.where(np.array(mask))"

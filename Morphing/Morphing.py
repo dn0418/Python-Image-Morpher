@@ -5,7 +5,7 @@
 
 import os
 import copy
-from scipy.ndimage import median_filter
+from PIL import Image, ImageDraw
 from scipy.spatial import Delaunay                  # pip install scipy
 from scipy.interpolate import RectBivariateSpline   # pip install scipy
 from matplotlib.path import Path                    # pip install matplotlib
@@ -17,20 +17,12 @@ import itertools
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def loadTriangles(leftPointFilePath: str, rightPointFilePath: str) -> tuple:
-    leftList = []
-    rightList = []
     leftTriList = []
     rightTriList = []
 
-    with open(leftPointFilePath, "r") as leftFile:
-        for j in leftFile:
-            leftList.append(j.split())
-    with open(rightPointFilePath, "r") as rightFile:
-        for k in rightFile:
-            rightList.append(k.split())
+    leftArray = np.loadtxt(leftPointFilePath).astype(np.float64)
+    rightArray = np.loadtxt(rightPointFilePath).astype(np.float64)
 
-    leftArray = np.array(leftList, np.float64)
-    rightArray = np.array(rightList, np.float64)
     delaunayTri = Delaunay(leftArray)
 
     leftNP = leftArray[delaunayTri.simplices]
@@ -52,24 +44,14 @@ class Triangle:
         if vertices.dtype != np.float64:
             raise ValueError("Input argument is not of type float64.")
         self.vertices = vertices
-        self.minX = int(self.vertices[:, 0].min())
-        self.maxX = int(self.vertices[:, 0].max())
-        self.minY = int(self.vertices[:, 1].min())
-        self.maxY = int(self.vertices[:, 1].max())
 
+    # Credit to https://github.com/zhifeichen097/Image-Morphing for the following approach (which is a bit more efficient than my own)!
     def getPoints(self):
-        xList = range(self.minX, self.maxX + 1)
-        yList = range(self.minY, self.maxY + 1)
-        a = [xList, yList]
-        emptyList = list(itertools.product(*a))
-
-        points = np.array(emptyList, np.float64)
-        p = Path(self.vertices)
-        grid = p.contains_points(points)
-        mask = grid.reshape(self.maxX - self.minX + 1, self.maxY - self.minY + 1)
-
-        trueArray = np.where(np.array(mask))
-        coordArray = np.vstack((trueArray[0] + self.minX, trueArray[1] + self.minY, np.ones(trueArray[0].shape[0])))
+        width = round(max(self.vertices[:, 0]) + 2)
+        height = round(max(self.vertices[:, 1]) + 2)
+        mask = Image.new('P', (width, height), 0)
+        ImageDraw.Draw(mask).polygon(tuple(map(tuple, self.vertices)), outline=255, fill=255)
+        coordArray = np.transpose(np.nonzero(mask))
 
         return coordArray
 
@@ -94,20 +76,16 @@ class Morpher:
             if isinstance(k, Triangle) == 0:
                 raise TypeError('Element of input rightTriangles is not of Class Triangle')
         self.leftImage = copy.deepcopy(leftImage)
+        self.newLeftImage = copy.deepcopy(leftImage)
         self.leftTriangles = leftTriangles  # Not of type np.uint8
         self.rightImage = copy.deepcopy(rightImage)
+        self.newRightImage = copy.deepcopy(rightImage)
         self.rightTriangles = rightTriangles  # Not of type np.uint8
-        self.leftInterpolation = RectBivariateSpline(np.arange(self.leftImage.shape[0]), np.arange(self.leftImage.shape[1]), self.leftImage, kx=1, ky=1)
-        self.rightInterpolation = RectBivariateSpline(np.arange(self.rightImage.shape[0]), np.arange(self.rightImage.shape[1]), self.rightImage, kx=1, ky=1)
-
 
     def getImageAtAlpha(self, alpha):
         for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles):
             self.interpolatePoints(leftTriangle, rightTriangle, alpha)
-
-        blendARR = ((1 - alpha) * self.leftImage + alpha * self.rightImage)
-        blendARR = blendARR.astype(np.uint8)
-        return blendARR
+        return ((1 - alpha) * self.newLeftImage + alpha * self.newRightImage).astype(np.uint8)
 
     def interpolatePoints(self, leftTriangle, rightTriangle, alpha):
         targetTriangle = Triangle(leftTriangle.vertices + (rightTriangle.vertices - leftTriangle.vertices) * alpha)
@@ -130,12 +108,23 @@ class Morpher:
         rightH = np.array([[righth[0][0], righth[1][0], righth[2][0]], [righth[3][0], righth[4][0], righth[5][0]], [0, 0, 1]])
         leftinvH = np.linalg.inv(leftH)
         rightinvH = np.linalg.inv(rightH)
-        targetPoints = targetTriangle.getPoints()  # TODO: ~ 17-18% of runtime
+        targetPoints = targetTriangle.getPoints()
 
-        leftSourcePoints = np.transpose(np.matmul(leftinvH, targetPoints))
-        rightSourcePoints = np.transpose(np.matmul(rightinvH, targetPoints))
-        targetPoints = np.transpose(targetPoints)
+        # Credit to https://github.com/zhifeichen097/Image-Morphing for the following code block that I've adapted. Exceptional work on discovering
+        # RectBivariateSpline's .ev() method! I noticed the method but didn't think much of it at the time due to the website's poor documentation..
+        xp, yp = np.transpose(targetPoints)
+        leftXValues = leftinvH[1, 1] * xp + leftinvH[1, 0] * yp + leftinvH[1, 2]
+        leftYValues = leftinvH[0, 1] * xp + leftinvH[0, 0] * yp + leftinvH[0, 2]
+        leftXParam = np.arange(np.amin(leftTriangle.vertices[:, 1]), np.amax(leftTriangle.vertices[:, 1]), 1)
+        leftYParam = np.arange(np.amin(leftTriangle.vertices[:, 0]), np.amax(leftTriangle.vertices[:, 0]), 1)
+        leftImageValues = self.leftImage[int(leftXParam[0]):int(leftXParam[-1] + 1), int(leftYParam[0]):int(leftYParam[-1] + 1)]
 
-        for x, y, z in zip(targetPoints, leftSourcePoints, rightSourcePoints):  # TODO: ~ 53% of runtime
-            self.leftImage[int(x[1])][int(x[0])] = self.leftInterpolation(y[1], y[0])
-            self.rightImage[int(x[1])][int(x[0])] = self.rightInterpolation(z[1], z[0])
+        rightXValues = rightinvH[1, 1] * xp + rightinvH[1, 0] * yp + rightinvH[1, 2]
+        rightYValues = rightinvH[0, 1] * xp + rightinvH[0, 0] * yp + rightinvH[0, 2]
+        rightXParam = np.arange(np.amin(rightTriangle.vertices[:, 1]), np.amax(rightTriangle.vertices[:, 1]), 1)
+        rightYParam = np.arange(np.amin(rightTriangle.vertices[:, 0]), np.amax(rightTriangle.vertices[:, 0]), 1)
+        rightImageValues = self.rightImage[int(rightXParam[0]):int(rightXParam[-1] + 1), int(rightYParam[0]):int(rightYParam[-1] + 1)]
+
+        # This is where performance skyrockets. Again, credit goes to zhifeichen097 for discovering the .ev() method!
+        self.newLeftImage[xp, yp] = RectBivariateSpline(leftXParam, leftYParam, leftImageValues, kx=1, ky=1).ev(leftXValues, leftYValues)
+        self.newRightImage[xp, yp] = RectBivariateSpline(rightXParam, rightYParam, rightImageValues, kx=1, ky=1).ev(rightXValues, rightYValues)

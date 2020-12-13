@@ -59,8 +59,8 @@ python get-pip.py
 <p align="center"><i>Proof of Concept - Perspective Shifting</i><p align="center">
 
 ## Development 'To-Do' List:
-- <b>Change:</b> Improved Morphing Performance
-    - <i>Currently, interpolation is the biggest bottleneck, second to the required matrix math. Some steps have already been taken but this is a complicated issue with the project that stems from the very nature of its existence - see Paragraph 2 of README.</i>
+- <b>Change:</b> Improved Drawing Performance
+    - <i>There is currently a small delay with point placement when working with larger images.</i>
 - <b>Feature:</b> Automatic Correspondence Determination
     - The user may click a button to have PIM automatically generate points by scanning for similar features between images
 - <b>Feature:</b> Resizable Image Points
