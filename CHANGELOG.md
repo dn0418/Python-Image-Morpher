@@ -1,4 +1,8 @@
 # Version 0.3.1.0 - (2020-12-13)
+## Known Bugs
+- The GUI can sometimes become unresponsive during morphing calculations (but eventually returns to normal)
+    - QtCore.QCoreApplication.processEvents() is a potential workaround but currently produces buggy results
+    
 ## Added
 - <b>Image Zoom</b> - Because sometimes, it's hard to get that one point just right.
   - The user can now right click on either [or both] of the input images to toggle zoom for more accurate point placement
