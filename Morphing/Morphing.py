@@ -68,7 +68,7 @@ class Triangle:
         grid = p.contains_points(points)
         mask = grid.reshape(self.maxX - self.minX + 1, self.maxY - self.minY + 1)
 
-        trueArray = np.where(np.array(mask) == True)
+        trueArray = np.where(np.array(mask))
         coordArray = np.vstack((trueArray[0] + self.minX, trueArray[1] + self.minY, np.ones(trueArray[0].shape[0])))
 
         return coordArray
@@ -101,7 +101,7 @@ class Morpher:
         self.rightInterpolation = RectBivariateSpline(np.arange(self.rightImage.shape[0]), np.arange(self.rightImage.shape[1]), self.rightImage, kx=1, ky=1)
 
 
-    def getImageAtAlpha(self, alpha, smoothMode):
+    def getImageAtAlpha(self, alpha):
         for leftTriangle, rightTriangle in zip(self.leftTriangles, self.rightTriangles):
             self.interpolatePoints(leftTriangle, rightTriangle, alpha)
 
@@ -139,6 +139,3 @@ class Morpher:
         for x, y, z in zip(targetPoints, leftSourcePoints, rightSourcePoints):  # TODO: ~ 53% of runtime
             self.leftImage[int(x[1])][int(x[0])] = self.leftInterpolation(y[1], y[0])
             self.rightImage[int(x[1])][int(x[0])] = self.rightInterpolation(z[1], z[0])
-
-def smoothBlend(blendImage):
-    return median_filter(blendImage, size=2)

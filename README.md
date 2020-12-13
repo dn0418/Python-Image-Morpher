@@ -59,12 +59,13 @@ python get-pip.py
 <p align="center"><i>Proof of Concept - Perspective Shifting</i><p align="center">
 
 ## Development 'To-Do' List:
-- <b>Feature:</b> Image Zoom 
-    - User may click the right mouse button on an image to zoom in for more accurate point placement
-- <b>Feature:</b> Automatic Correspondence Determination
-    - User may have PIM automatically generate points by scanning for similar features between images
 - <b>Change:</b> Improved Morphing Performance
-    - Currently, interpolation is the biggest bottleneck, second to the required matrix math
+    - <i>Currently, interpolation is the biggest bottleneck, second to the required matrix math. Some steps have already been taken but this is a complicated issue with the project that stems from the very nature of its existence - see Paragraph 2 of README.</i>
+- <b>Feature:</b> Automatic Correspondence Determination
+    - The user may click a button to have PIM automatically generate points by scanning for similar features between images
+- <b>Feature:</b> Resizable Image Points
+    - Placed points now scale in size with their respective image (i.e. smaller images will use smaller points by default)
+    - Additionally, the user may manually scale point size with a slider on the GUI
 
 If you encounter an error, a bug, or if you simply wish to request a change/feature, please file an issue using the tracker that GitHub provides, [here](https://github.com/ddowd97/Morphing/issues).
 

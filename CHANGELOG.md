@@ -1,3 +1,36 @@
+# Version 0.3.1.0 - (2020-12-13)
+## Added
+- <b>Image Zoom</b> - Because sometimes, it's hard to get that one point just right.
+  - The user can now right click on either [or both] of the input images to toggle zoom for more accurate point placement
+    - Comment: <i>Sheesh, this was difficult to implement correctly with Qt. Currently this feature is using a default (and moderate) 
+      zoom strength of 2x, but this may be subject to change in the future - might use 2.5x or 3x if it seems that 2x isn't cutting it.</i>
+
+## Removed
+- As of v0.3.0.1's hot pixel fix, PIM's image smoothing feature is deprecated and will now be removed
+    - Removed Morphing.py's <b>smoothBlend()</b> method as well as the "smoothMode" parameter in <b>getImageAtAlpha()</b>
+    - Removed all code related to smoothing in MorphingApp.py (a reduction of 77 SLOC)
+    - Removed <b>self.smoothingBox</b> from MorphingGUI.ui and MorphingGUI.py
+        - Comment: <i>It's likely that this checkbox will be replaced with an automatic correspondence button at some point.</i>
+
+## Changes
+- Optimized the conditional logic found in MorphingApp.py's <b>displayTriangles()</b>
+- Optimized a query in Morphing.py's <b>getPoints()</b>
+  - "np.where(np.array(mask) == True)" → "np.where(np.array(mask))"
+- Optimized conditional logic and list pop statements in MorphingApp.py's <b>keyPressEvent()</b>
+- Changed the loop in MorphingApp.py's <b>autoCorner()</b> to be less C-like and more Pythonic
+  - "i = 0; while i < 4: ... i++" → "for leftPoint, rightPoint in zip(tempLeft, tempRight): ..."
+- Moved <b>autoCorner()</b>'s invocation of <b>refreshPaint()</b> out of it's loop (i.e. the GUI is now updated once instead of up to four times)
+- Changed the notification message displayed when <b>autoCorner()</b> adds one point pair
+- Removed a conditional in MorphingApp.py's <b>resizeLeft()</b> and <b>resizeRight()</b> that was unnecessarily reassigning their image type variable
+- Converted the syntax of all instances where lists were being reset in MorphingApp.py
+  - "self.blendList = []" → "self.blendList.clear()"
+- Updated a couple source code comments that became deprecated due to recent updates (oops)
+
+## Fixes
+- Resolved an oversight where .jpeg images couldn't be loaded into the program
+  - Comment: <i>To clarify, while it can probably accept other types, PIM is specifically written to work with .jpg, .jpeg, and .png images.</i>
+- Corrected unintended behavior in <b>mousePressEvent()</b> where points could also be drawn with the middle and right mouse buttons
+
 # Version 0.3.0.1 - (2020-12-01)
 ## Fixes
 - Fixed a long-standing bug where hot pixels frequently appeared in blended images [[before](https://i.imgur.com/W8RniY5.jpg) and [after](https://i.imgur.com/B5dLjRn.jpg)]
@@ -20,7 +53,7 @@
     - Comment: <i>Currently, image zoom functionality has been (somewhat) implemented but point placement will require additional changes.</i>
     
 ## Added
-- <b>Freestyle Point Placement</b> - Gone are the days where point pairs had to begin with the left image!
+- <b>Freestyle Point Placement</b> - Gone are the days when point pairs had to begin with the left image!
     - QoL: The user can now place point pairs on the images in whatever order they wish
     - Keyboard/mouse input logic has been rewritten to maintain previous behavior with Undo, Delete, OUT, etc.
 - <b>Redo (CTRL+Y) Functionality</b> 
@@ -190,7 +223,7 @@ release candidate
 - Fixed a crash where the user could press the blend button before morphing was even enabled
     - Comment: <i>I actually laughed when I accidentally caught this during debugging.. what an entertaining oversight.</i>
 - Fixed a bug where the GUI would fail to visibly update during the morphing process
-    - The blend button now locks up and the notification bar displays a relevant message while the program operates
+    - The blend button now locks up, and the notification bar displays a relevant message while the program operates
     - Comment: <i>These things were already happening in the background; visible changes to the QtGui just wouldn't apply
     due to the fact that the MainWindow "wasn't responding." Qt's repaint() method serves as a simple workaround here.</i>
 - Fixed a bug where regex in <b>loadDataLeft()</b> and <b>loadDataRight()</b> wasn't correctly detecting '.PNG' images
@@ -273,7 +306,7 @@ of whether the two images have scaled contents
     - "if tri.isChecked(): triPref = 1 else: triPref = 0" → "triPref = int(tri.isChecked())"
 - Optimized: Removed 24 SLOC (26% reduction) from MorphingApp.py's MainWindow constructor. All GUI initializations have 
 been shifted from MorphingApp.py to MorphingGUI.ui & MorphingGUI.py.
-    - Comment: <i>These were pretty much just a waste of space - some of the lines accomplished nothing at all. 
+    - Comment: <i>These were pretty much just a waste of space - some lines accomplished nothing at all. 
     Other times, MorphingGUI.ui and MorphingGUI.py were enabling elements just for the initializer to immediately 
     disable them afterwards.</i>
 - Optimized: Removed 7 SLOC (32% reduction) from MorphingApp.py's <b>updateTriangleWidget()</b>
@@ -282,7 +315,7 @@ been shifted from MorphingApp.py to MorphingGUI.ui & MorphingGUI.py.
 ## Fixes
 - Fixed an issue where the right image's triangle vertices were being loaded from type List instead of type Array
 - Fixed an issue where tooltips could appear over blank space, as some GUI elements were "wider" than they actually were
-- Fixed a bug where loading new images with Show Triangles checked would break both the checkbox as well as the triangle
+- Fixed a bug where loading new images with Show Triangles checked would break both the checkbox and the triangle
 painter
     - Comment: <i>This was a particularly nasty bug. It ended up mainly being caused by a state change method that triggered
     whenever the triangle box was modified. This method was setting flags at the same time as the calling block, which
@@ -294,7 +327,7 @@ painter
 - Fixed a bug where <b>autoCorner()</b> had to place corner points that were off by a pixel
     - (1, 1), (1, y - 1), (x - 1, 1), (x - 1, y - 1) → (0, 0), (0, y), (x, 0), (x, y)
 - Replaced a global (and hard-coded) DataPath variable that wasn't being used with a dynamic root directory variable. Hard coded
-text file paths in <b>loadDataLeft()</b> and <b>loadDataRight()</b> now instead build off of ROOT_DIR
+text file paths in <b>loadDataLeft()</b> and <b>loadDataRight()</b> now instead build on ROOT_DIR
     - Comment: <i>Now this program can start having release candidates! Once module import woes get sorted out, anyways.</i>
 - Removed an unnecessary call to <b>refreshPaint()</b> in <b>loadDataLeft()</b> and <b>loadDataRight()</b>
 - Removed a conditional in both <b>loadDataLeft()</b> and <b>loadDataRight()</b> that wasn't necessary
@@ -434,7 +467,7 @@ be easier to see on top of the two images. Clarity is key.</i>
     - The program now remembers the user's preference for the "Show Triangles" setting
         - If an action causes this setting to become disabled, the program will re-enable it the next time it is available
 - <b>Transparency Blending Toggle</b>
-    - The user is now able to specify whether or not they want to blend the alpha layer of images
+    - The user is now able to specify whether they want to blend the alpha layer of images
         - This setting only affects .PNG images
 ## Changed
 - Changed the following elements in MorphingGUI.ui and MorphingGUI.py:
