@@ -64,7 +64,7 @@ python get-pip.py
 - <b>Feature:</b> Automatic Correspondence Determination
     - The user may click a button to have PIM automatically generate points by scanning for similar features between images
 - <b>Feature:</b> Resizable Image Points
-    - Placed points now scale in size with their respective image (i.e. smaller images will use smaller points by default)
+    - Placed points now scale in size with their respective image (i.e. smaller images will use smaller points)
     - Additionally, the user may manually scale point size with a slider on the GUI
 
 If you encounter an error, a bug, or if you simply wish to request a change/feature, please file an issue using the tracker that GitHub provides, [here](https://github.com/ddowd97/Morphing/issues).
