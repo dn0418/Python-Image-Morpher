@@ -18,8 +18,7 @@
         - Comment: <i>It's likely that this checkbox will be replaced with an automatic correspondence button at some point.</i>
 
 ## Changes
-- Improved morphing performance (a huge <b>90%</b> speedup) by modifying Morphing.py's implementation of <b>getPoints()</b> as well as tweaking
-  <b>interpolatePoints()</b> to utilize RectBivariateSpline's .ev() method instead of manually interpolating the image data
+- Improved morphing performance (a huge <b>90%</b> speedup) by modifying Morphing.py's implementation of <b>getPoints()</b> as well as tweaking <b>interpolatePoints()</b> to utilize RectBivariateSpline's .ev() method instead of manually interpolating the image data
   - <b>Huge thanks to GitHub user [zhifeichen097](https://github.com/zhifeichen097) for his source code which can be found [here](https://github.com/zhifeichen097/Image-Morphing) - excellent work!</b>
 - Optimized the conditional logic found in MorphingApp.py's <b>displayTriangles()</b>
 - Optimized a query in Morphing.py's <b>getPoints()</b>
