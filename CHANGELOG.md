@@ -21,8 +21,7 @@
 - Improved morphing performance (a huge <b>90%</b> speedup) by modifying Morphing.py's implementation of <b>getPoints()</b> as well as tweaking <b>interpolatePoints()</b> to utilize RectBivariateSpline's .ev() method instead of manually interpolating the image data
   - <b>Huge thanks to GitHub user [zhifeichen097](https://github.com/zhifeichen097) for his source code which can be found [here](https://github.com/zhifeichen097/Image-Morphing) - excellent work!</b>
 - Optimized the conditional logic found in MorphingApp.py's <b>displayTriangles()</b>
-- Optimized a query in Morphing.py's <b>getPoints()</b>
-  - "np.where(np.array(mask) == True)" → "np.where(np.array(mask))"
+- Optimized point assignment in Morphing.py's <b>loadTriangles()</b> by utilizing np.loadtxt()
 - Optimized conditional logic and list pop statements in MorphingApp.py's <b>keyPressEvent()</b>
 - Changed the loop in MorphingApp.py's <b>autoCorner()</b> to be less C-like and more Pythonic
   - "i = 0; while i < 4: ... i++" → "for leftPoint, rightPoint in zip(tempLeft, tempRight): ..."
