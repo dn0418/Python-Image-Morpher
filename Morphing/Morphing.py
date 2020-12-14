@@ -102,29 +102,32 @@ class Morpher:
                                     [0, 0, 0, rightTriangle.vertices[1][0], rightTriangle.vertices[1][1], 1],
                                     [rightTriangle.vertices[2][0], rightTriangle.vertices[2][1], 1, 0, 0, 0],
                                     [0, 0, 0, rightTriangle.vertices[2][0], rightTriangle.vertices[2][1], 1]])
-        lefth = np.linalg.solve(tempLeftMatrix, targetVertices)
-        righth = np.linalg.solve(tempRightMatrix, targetVertices)
-        leftH = np.array([[lefth[0][0], lefth[1][0], lefth[2][0]], [lefth[3][0], lefth[4][0], lefth[5][0]], [0, 0, 1]])
-        rightH = np.array([[righth[0][0], righth[1][0], righth[2][0]], [righth[3][0], righth[4][0], righth[5][0]], [0, 0, 1]])
-        leftinvH = np.linalg.inv(leftH)
-        rightinvH = np.linalg.inv(rightH)
-        targetPoints = targetTriangle.getPoints()
+        try:
+            lefth = np.linalg.solve(tempLeftMatrix, targetVertices)
+            righth = np.linalg.solve(tempRightMatrix, targetVertices)
+            leftH = np.array([[lefth[0][0], lefth[1][0], lefth[2][0]], [lefth[3][0], lefth[4][0], lefth[5][0]], [0, 0, 1]])
+            rightH = np.array([[righth[0][0], righth[1][0], righth[2][0]], [righth[3][0], righth[4][0], righth[5][0]], [0, 0, 1]])
+            leftinvH = np.linalg.inv(leftH)
+            rightinvH = np.linalg.inv(rightH)
+            targetPoints = targetTriangle.getPoints()
 
-        # Credit to https://github.com/zhifeichen097/Image-Morphing for the following code block that I've adapted. Exceptional work on discovering
-        # RectBivariateSpline's .ev() method! I noticed the method but didn't think much of it at the time due to the website's poor documentation..
-        xp, yp = np.transpose(targetPoints)
-        leftXValues = leftinvH[1, 1] * xp + leftinvH[1, 0] * yp + leftinvH[1, 2]
-        leftYValues = leftinvH[0, 1] * xp + leftinvH[0, 0] * yp + leftinvH[0, 2]
-        leftXParam = np.arange(np.amin(leftTriangle.vertices[:, 1]), np.amax(leftTriangle.vertices[:, 1]), 1)
-        leftYParam = np.arange(np.amin(leftTriangle.vertices[:, 0]), np.amax(leftTriangle.vertices[:, 0]), 1)
-        leftImageValues = self.leftImage[int(leftXParam[0]):int(leftXParam[-1] + 1), int(leftYParam[0]):int(leftYParam[-1] + 1)]
+            # Credit to https://github.com/zhifeichen097/Image-Morphing for the following code block that I've adapted. Exceptional work on discovering
+            # RectBivariateSpline's .ev() method! I noticed the method but didn't think much of it at the time due to the website's poor documentation..
+            xp, yp = np.transpose(targetPoints)
+            leftXValues = leftinvH[1, 1] * xp + leftinvH[1, 0] * yp + leftinvH[1, 2]
+            leftYValues = leftinvH[0, 1] * xp + leftinvH[0, 0] * yp + leftinvH[0, 2]
+            leftXParam = np.arange(np.amin(leftTriangle.vertices[:, 1]), np.amax(leftTriangle.vertices[:, 1]), 1)
+            leftYParam = np.arange(np.amin(leftTriangle.vertices[:, 0]), np.amax(leftTriangle.vertices[:, 0]), 1)
+            leftImageValues = self.leftImage[int(leftXParam[0]):int(leftXParam[-1] + 1), int(leftYParam[0]):int(leftYParam[-1] + 1)]
 
-        rightXValues = rightinvH[1, 1] * xp + rightinvH[1, 0] * yp + rightinvH[1, 2]
-        rightYValues = rightinvH[0, 1] * xp + rightinvH[0, 0] * yp + rightinvH[0, 2]
-        rightXParam = np.arange(np.amin(rightTriangle.vertices[:, 1]), np.amax(rightTriangle.vertices[:, 1]), 1)
-        rightYParam = np.arange(np.amin(rightTriangle.vertices[:, 0]), np.amax(rightTriangle.vertices[:, 0]), 1)
-        rightImageValues = self.rightImage[int(rightXParam[0]):int(rightXParam[-1] + 1), int(rightYParam[0]):int(rightYParam[-1] + 1)]
+            rightXValues = rightinvH[1, 1] * xp + rightinvH[1, 0] * yp + rightinvH[1, 2]
+            rightYValues = rightinvH[0, 1] * xp + rightinvH[0, 0] * yp + rightinvH[0, 2]
+            rightXParam = np.arange(np.amin(rightTriangle.vertices[:, 1]), np.amax(rightTriangle.vertices[:, 1]), 1)
+            rightYParam = np.arange(np.amin(rightTriangle.vertices[:, 0]), np.amax(rightTriangle.vertices[:, 0]), 1)
+            rightImageValues = self.rightImage[int(rightXParam[0]):int(rightXParam[-1] + 1), int(rightYParam[0]):int(rightYParam[-1] + 1)]
 
-        # This is where performance skyrockets. Again, credit goes to zhifeichen097 for discovering the .ev() method!
-        self.newLeftImage[xp, yp] = RectBivariateSpline(leftXParam, leftYParam, leftImageValues, kx=1, ky=1).ev(leftXValues, leftYValues)
-        self.newRightImage[xp, yp] = RectBivariateSpline(rightXParam, rightYParam, rightImageValues, kx=1, ky=1).ev(rightXValues, rightYValues)
+            # This is where performance skyrockets. Again, credit goes to zhifeichen097 for discovering the .ev() method!
+            self.newLeftImage[xp, yp] = RectBivariateSpline(leftXParam, leftYParam, leftImageValues, kx=1, ky=1).ev(leftXValues, leftYValues)
+            self.newRightImage[xp, yp] = RectBivariateSpline(rightXParam, rightYParam, rightImageValues, kx=1, ky=1).ev(rightXValues, rightYValues)
+        except:
+            return
