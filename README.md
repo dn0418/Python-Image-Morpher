@@ -18,7 +18,7 @@ This project began in Spring 2019 (detailed in <b>readme_general.pdf</b>, <b>rea
  if it does not already, later releases are likely to support Mac and Linux.
 
 <p align="center">
-  <img width="675" height="676" src="https://i.imgur.com/uc9nGoc.png"><br>
+  <img width="675" height="676" src="https://i.imgur.com/wKsHGh9.png"><br>
 </p>
 
 ## Installation:
@@ -49,9 +49,11 @@ python get-pip.py
 
 ## Usage:
 - Run MorphingApp.py either through the terminal or using an IDE
-- Use the graphical interface to select your two images to morph
-- Click on points of interest in your images to create correspondences
-- When satisfied, click on blend and observe the result!
+- Use the graphical interface to select the two images you want to morph together
+- Alternate clicking on related points of interest in your images to create correspondences
+- When satisfied, click the blend button to observe the result!
+
+A more detailed Help guide is included within PIM's GUI, if needed.
 
 <p align="center">
   <img src="https://i.imgur.com/j7JStm4.gif"><br>
@@ -63,9 +65,6 @@ python get-pip.py
     - <i>There is currently a small delay with point placement when working with larger images.</i>
 - <b>Feature:</b> Automatic Correspondence Determination
     - The user may click a button to have PIM automatically generate points by scanning for similar features between images
-- <b>Feature:</b> Resizable Image Points
-    - Placed points now scale in size with their respective image (i.e. smaller images will use smaller points)
-    - Additionally, the user may manually scale point size with a slider on the GUI
 
 If you encounter an error, a bug, or if you simply wish to request a change/feature, please file an issue using the tracker that GitHub provides, [here](https://github.com/ddowd97/Morphing/issues).
 

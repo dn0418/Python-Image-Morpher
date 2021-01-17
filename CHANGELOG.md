@@ -1,3 +1,31 @@
+# Version 1.1.0 - (2021-01-16)
+## Known Bugs
+- The GUI can sometimes become unresponsive during morphing calculations (but eventually returns to normal)
+    - QtCore.QCoreApplication.processEvents() is a potential workaround but currently produces buggy results
+    
+## Added
+- <b>Point Size Slider</b>
+    - QoL: The user can now manually change the size of points rendered onto the GUI (in realtime) for ease of use
+    - Point width values still default to 4 during initialization but can now range from 1 to 10
+## Changes
+- PIM's GUI has received another facelift with this update! The following elements have been changed:
+  - <b>Redesign:</b>
+    - Along with a streamlined layout, buttons & settings have been moved to categorized tabs
+  - <b>Accessibility:</b> 
+    - PIM now includes a Help manual for new users! Check the Help tab in the GUI for more.
+    - Minimum size of the main window has changed from <b>(878 x 809)</b> to <b>(788 x 690)</b>
+      - Comment: <i>I realize that there are still people in the world using 720p monitors.. this one's for you.</i>
+  - <b>Miscellaneous:</b>
+    - Added dedicated value boxes for each of the triangle color sliders
+      - Changes in value will no longer be announced in the notification bar
+    - Alpha is now initialized at 50% instead of 0%
+      - Comment: <i>Honestly, not really sure why this wasn't always the case.</i>
+- Updated README.md
+
+## Fixes
+- Fixed an ugly bug where zooming in to only one image could reshape the GUI
+- Fixed a notification bar bug regarding mouse clicks when only one image was loaded
+
 # Version 1.0.0 - <i> Finally! </i> - (2020-12-13)
 ## Known Bugs
 - The GUI can sometimes become unresponsive during morphing calculations (but eventually returns to normal)

@@ -178,6 +178,9 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.triangleRedSlider.setEnabled(val)
         self.triangleGreenSlider.setEnabled(val)
         self.triangleBlueSlider.setEnabled(val)
+        self.triangleRedValue.setEnabled(val)
+        self.triangleGreenValue.setEnabled(val)
+        self.triangleBlueValue.setEnabled(val)
 
     # Self-contained function that checks for the existence of corner points and adds any that are not already present.
     # Can not be invoked while a point is pending (in order to prevent exploits).
@@ -272,18 +275,18 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     # Dynamically handles changes in point and polygon lists to be compatible with resetPoints, autoCorner, etc.
     # TODO: Modify pointWidth to be a function of image size
     def paintEvent(self, paint_event):
-        if self.changeFlag:
+        if self.changeFlag or self.pointSlider.valueChanged:
             leftPic = QtGui.QPixmap(self.startingImagePath)
             rightPic = QtGui.QPixmap(self.endingImagePath)
             pen = QtGui.QPen()
-            pen.setWidth(4)
+            pen.setWidth(self.pointSlider.value())
             leftpainter = QtGui.QPainter(leftPic)
             rightpainter = QtGui.QPainter(rightPic)
-            pointWidth = 4
+            pointWidth = self.pointSlider.value()
 
             if self.triangleUpdate == 1:
                 if len(self.leftPolyList) == len(self.rightPolyList) > 0:
-                    pointWidth = 7
+                    pointWidth *= 1.7
                     pen.setColor(QtGui.QColor(self.triangleRedSlider.value(), self.triangleGreenSlider.value(), self.triangleBlueSlider.value(), 255))
                     leftpainter.setPen(pen)
                     for x in self.leftPolyList:
@@ -466,9 +469,11 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 self.autoCornerButton.setEnabled(len(self.added_left_points) == len(self.added_right_points) == 0)
 
     # Function override of the window resize event. Fairly lightweight.
-    # Currently just recalculates the necessary scalar value to keep image displays and point placements accurate.
+    # Currently recalculates the necessary scalar and size values to keep image displays and point placements accurate.
     def resizeEvent(self, event):
         self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
+        self.startingImage.setFixedWidth(self.blendingImage.width())
+        self.endingImage.setFixedWidth(self.blendingImage.width())
 
     # Function that resizes a copy of the left image to the right image's dimensions
     def resizeLeft(self):
@@ -645,7 +650,8 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                             self.refreshPaint()
                             self.displayTriangles()
             else:
-                self.notificationLine.setText(" Images must be the same size before points can be drawn!")
+                if (self.startingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.startingImage.geometry().bottomRight().y() and len(self.added_left_points) == 0) or (self.endingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() and self.endingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y() and len(self.added_right_points) == 0):
+                    self.notificationLine.setText(" Images must be the same size before points can be drawn!")
         # RMB (Toggle Zoom)
         elif cursor_event.button() == QtCore.Qt.RightButton:
             # RMB was clicked inside left image
@@ -735,15 +741,15 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
 
     # Red/Green/Blue slider functions for the triangle widget in order to select custom colors
     def updateRed(self):
-        self.notificationLine.setText(" Red value set to " + str(self.triangleRedSlider.value()) + ".")
+        self.triangleRedValue.setText(str(self.triangleRedSlider.value()))
         self.refreshPaint()
 
     def updateGreen(self):
-        self.notificationLine.setText(" Green value set to " + str(self.triangleGreenSlider.value()) + ".")
+        self.triangleGreenValue.setText(str(self.triangleGreenSlider.value()))
         self.refreshPaint()
 
     def updateBlue(self):
-        self.notificationLine.setText(" Blue value set to " + str(self.triangleBlueSlider.value()) + ".")
+        self.triangleBlueValue.setText(str(self.triangleBlueSlider.value()))
         self.refreshPaint()
 
     # Function that handles behavior when the user wishes to blend the two calibrated images.
