@@ -1,5 +1,6 @@
 pyqt5
 scipy
-numpy==1.19.3
+numpy
 imageio
-matplotlib
+pynput
+opencv-python

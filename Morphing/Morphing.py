@@ -1,6 +1,6 @@
 #######################################################
-#   Author:     David Dowd
-#   Email:      ddowd97@gmail.com
+#            Author:     David Dowd
+#            Email:      ddowd97@gmail.com
 #######################################################
 
 import os
@@ -8,9 +8,7 @@ import copy
 from PIL import Image, ImageDraw
 from scipy.spatial import Delaunay                  # pip install scipy
 from scipy.interpolate import RectBivariateSpline   # pip install scipy
-from matplotlib.path import Path                    # pip install matplotlib
 import numpy as np                                  # pip install numpy
-import itertools
 
 # Module  level  Variables
 #######################################################
@@ -126,7 +124,6 @@ class Morpher:
             rightYParam = np.arange(np.amin(rightTriangle.vertices[:, 0]), np.amax(rightTriangle.vertices[:, 0]), 1)
             rightImageValues = self.rightImage[int(rightXParam[0]):int(rightXParam[-1] + 1), int(rightYParam[0]):int(rightYParam[-1] + 1)]
 
-            # This is where performance skyrockets. Again, credit goes to zhifeichen097 for discovering the .ev() method!
             self.newLeftImage[xp, yp] = RectBivariateSpline(leftXParam, leftYParam, leftImageValues, kx=1, ky=1).ev(leftXValues, leftYValues)
             self.newRightImage[xp, yp] = RectBivariateSpline(rightXParam, rightYParam, rightImageValues, kx=1, ky=1).ev(rightXValues, rightYValues)
         except:

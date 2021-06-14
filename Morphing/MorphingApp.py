@@ -1,19 +1,22 @@
 #######################################################
-#   Author:     David Dowd
-#   Email:      ddowd97@gmail.com
+#            Author:     David Dowd
+#            Email:      ddowd97@gmail.com
 #######################################################
 
+import queue
 import multiprocessing
 import sys
 import os
-import re
+import warnings
 import time
 import shutil
 
+import PyQt5.QtCore
+import cv2
 import imageio
-from PIL import Image
 from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog
 import math
+from pynput import mouse
 
 from Morphing import *
 from MorphingGUI import *
@@ -21,6 +24,98 @@ from MorphingGUI import *
 # Module  level  Variables
 #######################################################
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+grayScale = None
+colorScaleR = None
+colorScaleG = None
+colorScaleB = None
+colorScaleA = None
+start_time = 0.00
+alphaValue = None
+
+
+# OS independent solution for tracking mouse release on window resize events (because Qt can't detect this)
+def on_click(x, y, button, pressed):
+    if not pressed:
+        currentForm.resizeImages()
+        return False
+
+
+class ImagerThread(QtCore.QThread):
+    image_complete = QtCore.pyqtSignal(list)
+
+    def run(self):
+        global grayScale, colorScaleR, colorScaleG, colorScaleB, colorScaleA, alphaValue, start_time
+        pool = multiprocessing.Pool(4)
+        if grayScale is not None:
+            blendGray = grayScale.getImageAtAlpha(alphaValue)
+        elif colorScaleA is None:
+            results = [pool.apply_async(colorScaleR.getImageAtAlpha, (alphaValue,)),
+                       pool.apply_async(colorScaleG.getImageAtAlpha, (alphaValue,)),
+                       pool.apply_async(colorScaleB.getImageAtAlpha, (alphaValue,))]
+            blendR = results[0].get()
+            blendG = results[1].get()
+            blendB = results[2].get()
+        else:
+            results = [pool.apply_async(colorScaleR.getImageAtAlpha, (alphaValue,)),
+                       pool.apply_async(colorScaleG.getImageAtAlpha, (alphaValue,)),
+                       pool.apply_async(colorScaleB.getImageAtAlpha, (alphaValue,)),
+                       pool.apply_async(colorScaleA.getImageAtAlpha, (alphaValue,))]
+            blendR = results[0].get()
+            blendG = results[1].get()
+            blendB = results[2].get()
+            blendA = results[3].get()
+        pool.close()
+        pool.terminate()
+        pool.join()
+        if grayScale is not None:
+            self.image_complete.emit([blendGray])
+        elif colorScaleA is None:
+            self.image_complete.emit([blendR, blendG, blendB])
+        else:
+            self.image_complete.emit([blendR, blendG, blendB, blendA])
+
+
+class FrameThread(QtCore.QThread):
+    def __init__(self, threadQueue, parent=None):
+        QtCore.QThread.__init__(self, parent)
+        self.queue = threadQueue
+    frame_complete = QtCore.pyqtSignal(list)
+    update_progress = QtCore.pyqtSignal(int)
+
+    def run(self):
+        global grayScale, colorScaleR, colorScaleG, colorScaleB, colorScaleA, start_time
+        while True:
+            value = self.queue.get()
+            pool = multiprocessing.Pool(4)
+            if grayScale is not None:
+                blendGray = grayScale.getImageAtAlpha(value)
+            elif colorScaleA is None:
+                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (value,)),
+                           pool.apply_async(colorScaleG.getImageAtAlpha, (value,)),
+                           pool.apply_async(colorScaleB.getImageAtAlpha, (value,))]
+                blendR = results[0].get()
+                blendG = results[1].get()
+                blendB = results[2].get()
+            else:
+                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (value,)),
+                           pool.apply_async(colorScaleG.getImageAtAlpha, (value,)),
+                           pool.apply_async(colorScaleB.getImageAtAlpha, (value,)),
+                           pool.apply_async(colorScaleA.getImageAtAlpha, (value,))]
+                blendR = results[0].get()
+                blendG = results[1].get()
+                blendB = results[2].get()
+                blendA = results[3].get()
+            pool.close()
+            pool.terminate()
+            pool.join()
+            if grayScale is not None:
+                self.frame_complete.emit([blendGray])
+            elif colorScaleA is None:
+                self.frame_complete.emit([blendR, blendG, blendB])
+            else:
+                self.frame_complete.emit([blendR, blendG, blendB, blendA])
+            self.update_progress.emit(1)
+            self.queue.task_done()
 
 
 class MorphingApp(QMainWindow, Ui_MainWindow):
@@ -28,7 +123,17 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
         super(MorphingApp, self).__init__(parent)
         self.setupUi(self)
+        self.progressBar.setVisible(False)
         self.setWindowIcon(QtGui.QIcon("./Morphing.ico"))
+        self.setAcceptDrops(True)
+        self.tabWidget.removeTab(2)  # Configuration Tab is still in development, so this hides it for now ;)
+        self.triangleRedValue.installEventFilter(self)
+        self.triangleGreenValue.installEventFilter(self)
+        self.triangleBlueValue.installEventFilter(self)
+
+        # QtDesigner is (really) bad at setting fixed sizes. This is a simple fix.
+        self.blendingImage.setMinimumHeight(259)
+        self.tabWidget.setMinimumHeight(307)
 
         # Defaults on Startup
         self.chosen_left_points = []                                            # List used to store points confirmed in previous sessions (LEFT)
@@ -42,6 +147,8 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.leftPolyList = []                                                  # List used to store delaunay triangles (LEFT)
         self.rightPolyList = []                                                 # List used to store delaunay triangles (RIGHT)
         self.blendList = []                                                     # List used to store a variable amount of alpha increment frames for full blending
+        self.zoomPanRef = []                                                    # List used to store the source image and coordinate that initiate a zoom panning event
+        self.movingPoint = ['', '', 0, QtCore.QPoint(-1, -1), QtCore.QPoint(-1, -1)]  # List used to store the type of point being moved as well as it's source, index, previous & current coordinates
 
         self.startingImagePath = ''                                             # String used to store file path to the left image
         self.endingImagePath = ''                                               # String used to store file path to the right image
@@ -53,6 +160,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.endingImageName = ''                                               # String used to store the right image's file name
         self.startingImageType = ''                                             # String used to store the left image's file type
         self.endingImageType = ''                                               # String used to store the right image's file type
+        self.leftTempPath = ''                                                  # String used to store temp file path for resizing left image in GUI
+        self.rightTempPath = ''                                                 # String used to store temp file path for resizing right image in GUI
+        self.leftTempTextPath = ''                                              # String used to store temp file path for resizing left image in GUI
+        self.rightTempTextPath = ''                                             # String used to store temp text file path for resizing right image in GUI
 
         self.enableDeletion = 0                                                 # Flag used to indicate whether the most recently created point can be deleted with Backspace
         self.triangleUpdate = 0                                                 # Flag used to indicate whether triangles need to be repainted (or removed) in the next paint event
@@ -61,35 +172,146 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.fullBlendValue = 0.05                                              # Value used for determining the spacing between alpha increments when full blending
         self.gifValue = 100                                                     # Value used for determining the amount of time allotted to each frame of a created .gif file
 
-        self.leftSize = (0, 0)                                                  # Tuple used to store the width and height of the left image
-        self.rightSize = (0, 0)                                                 # Tuple used to store the width and height of the right image
+        self.leftSize = (0, 0)                                                  # Tuple used to store the width and height of the displayed left image
+        self.rightSize = (0, 0)                                                 # Tuple used to store the width and height of the displayed right image
+        self.trueLeftSize = (0, 0)                                              # Tuple used to store the width and height of the original left image
+        self.trueRightSize = (0, 0)                                             # Tuple used to store the width and height of the original right image
+        self.lastLeftSize = (0, 0)                                              # Tuple used to store the previous size of the left image window before a resize
+        self.lastRightSize = (0, 0)                                             # Tuple used to store the previous size of the right image window before a resize
         self.leftZoomData = None                                                # Tuple used to store the coordinates of the user's zoom on the left image. None when zoomed out, (a, b, c, d) when zoomed in
         self.rightZoomData = None                                               # Tuple used to store the coordinates of the user's zoom on the right image. None when zoomed out, (e, f, g, h) when zoomed in
 
         self.fullBlendComplete = False                                          # Flag used to indicate whether a full blend is displayable
         self.changeFlag = False                                                 # Flag used to indicate when the program should repaint (because Qt loves to very frequently call paint events)
+        self.openFlag = True                                                    # Flag used to indicate whether the GUI is open
+        self.resizeFlag = False                                                 # Flag used to indicate whether the GUI is being resized
+        self.hoverFlag = False                                                  # Flag used to indicate whether a point is being hovered by moveMode (i.e., the user is deciding where to place it again)
+        self.deleteMode = False                                                 # Flag used to indicate whether the user is currently attempting to delete specific points via GUI
+        self.moveMode = False                                                   # Flag used to indicate whether the user is currently attempting to move specific points via GUI
 
         self.blendedImage = None                                                # Pre-made reference to a variable that is used to store a singular blended image
+        self.threadQueue = queue.Queue()
+        self.imager = ImagerThread()
+        self.framer = FrameThread(self.threadQueue)
+        self.framer.frame_complete.connect(self.frameFinished)
+        self.framer.update_progress.connect(self.updateProgress)
 
         # Logic
-        self.loadStartButton.clicked.connect(self.loadDataLeft)                 # When the first  load image button is clicked, begins loading logic
-        self.loadEndButton.clicked.connect(self.loadDataRight)                  # When the second load image button is clicked, begins loading logic
-        self.resizeLeftButton.clicked.connect(self.resizeLeft)                  # When the left resize button is clicked, begins resizing logic
-        self.resizeRightButton.clicked.connect(self.resizeRight)                # When the right resize button is clicked, begins resizing logic
-        self.triangleBox.clicked.connect(self.updateTriangleStatus)             # When the triangle box is clicked, changes flags
-        self.transparencyBox.stateChanged.connect(self.transparencyUpdate)      # When the transparency box is checked or unchecked, changes flags
-        self.blendButton.clicked.connect(self.blendImages)                      # When the blend button is clicked, begins blending logic
-        self.blendBox.stateChanged.connect(self.blendBoxUpdate)                 # When the blend box is checked or unchecked, changes flags
-        self.blendText.returnPressed.connect(self.blendTextDone)                # When the return key is pressed, removes focus from the input text window
-        self.saveButton.clicked.connect(self.saveImages)                        # When the save button is clicked, begins image saving logic
-        self.gifText.returnPressed.connect(self.gifTextDone)                    # When the return key is pressed, removes focus from the input text window
-        self.alphaSlider.valueChanged.connect(self.updateAlpha)                 # When the alpha slider is moved, reads and formats the value
-        self.triangleRedSlider.valueChanged.connect(self.updateRed)             # When the red   slider is moved, reads the value
-        self.triangleGreenSlider.valueChanged.connect(self.updateGreen)         # When the green slider is moved, reads the value
-        self.triangleBlueSlider.valueChanged.connect(self.updateBlue)           # When the blue  slider is moved, reads the value
-        self.resetPointsButton.clicked.connect(self.resetPoints)                # When the reset points button is clicked, begins logic for removing points
-        self.resetSliderButton.clicked.connect(self.resetAlphaSlider)           # When the reset slider button is clicked, begins logic for resetting it to default
-        self.autoCornerButton.clicked.connect(self.autoCorner)                  # When the add   corner button is clicked, begins logic for adding corner points
+        self.loadStartButton.clicked.connect(self.loadDataLeft)                         # When the first  load image button is clicked, begins loading logic
+        self.loadEndButton.clicked.connect(self.loadDataRight)                          # When the second load image button is clicked, begins loading logic
+        self.resizeLeftButton.clicked.connect(self.resizeLeft)                          # When the left resize button is clicked, begins resizing logic
+        self.resizeRightButton.clicked.connect(self.resizeRight)                        # When the right resize button is clicked, begins resizing logic
+        self.triangleBox.clicked.connect(self.updateTriangleStatus)                     # When the triangle box is clicked, changes flags
+        self.comboBox.currentIndexChanged.connect(self.updateTriangleFields)            # When the RGB data type is changed, update fields accordingly
+        self.transparencyBox.stateChanged.connect(self.transparencyUpdate)              # When the transparency box is checked or unchecked, changes flags
+        self.blendButton.clicked.connect(self.blendImages)                              # When the blend button is clicked, begins blending logic
+        self.blendBox.stateChanged.connect(self.blendBoxUpdate)                         # When the blend box is checked or unchecked, changes flags
+        self.blendText.returnPressed.connect(self.blendTextDone)                        # When the return key is pressed, removes focus from the input text window
+        self.saveButton.clicked.connect(self.saveImages)                                # When the save button is clicked, begins image saving logic
+        self.gifText.returnPressed.connect(self.gifTextDone)                            # When the return key is pressed, removes focus from the input text window
+        self.triangleRedValue.returnPressed.connect(self.triangleRedValueDone)          # When the user attempts to confirm a new Red   value, validate it
+        self.triangleGreenValue.returnPressed.connect(self.triangleGreenValueDone)      # When the user attempts to confirm a new Green value, validate it
+        self.triangleBlueValue.returnPressed.connect(self.triangleBlueValueDone)        # When the user attempts to confirm a new Blue  value, validate it
+        self.alphaSlider.valueChanged.connect(self.updateAlpha)                         # When the alpha slider is moved, reads and formats the value
+        self.triangleRedSlider.valueChanged.connect(self.updateRed)                     # When the red   slider is moved, reads the value
+        self.triangleGreenSlider.valueChanged.connect(self.updateGreen)                 # When the green slider is moved, reads the value
+        self.triangleBlueSlider.valueChanged.connect(self.updateBlue)                   # When the blue  slider is moved, reads the value
+        self.resetPointsButton.clicked.connect(self.resetPoints)                        # When the reset points button is clicked, begins logic for removing points
+        self.resetSliderButton.clicked.connect(self.resetAlphaSlider)                   # When the reset slider button is clicked, begins logic for resetting it to default
+        self.autoCornerButton.clicked.connect(self.autoCorner)                          # When the add   corner button is clicked, begins logic for adding corner points
+
+    def eventFilter(self, source, event):
+        if event.type() == QtCore.QEvent.MouseButtonPress:
+            if source == self.triangleRedValue:
+                self.triangleRedValue.setFocus(QtCore.Qt.MouseFocusReason)
+                self.triangleRedValue.setCursorPosition(0)
+                return True
+            elif source == self.triangleGreenValue:
+                self.triangleGreenValue.setFocus(QtCore.Qt.MouseFocusReason)
+                self.triangleGreenValue.setCursorPosition(0)
+                return True
+            elif source == self.triangleBlueValue:
+                self.triangleBlueValue.setFocus(QtCore.Qt.MouseFocusReason)
+                self.triangleBlueValue.setCursorPosition(0)
+                return True
+        if event.type() == QtCore.QEvent.FocusOut:
+            if source == self.triangleRedValue:
+                # mockEvent = QtGui.QKeyEvent(QtCore.QEvent.KeyPress, QtCore.Qt.Key_Return, QtCore.Qt.NoModifier)
+                # QtCore.QCoreApplication.postEvent(self, mockEvent)
+                self.triangleRedValueDone()
+            elif source == self.triangleGreenValue:
+                self.triangleGreenValueDone()
+            elif source == self.triangleBlueValue:
+                self.triangleBlueValueDone()
+        return super().eventFilter(source, event)
+
+    def imageFinished(self, blendList):
+        global start_time
+        if len(blendList) == 1:
+            self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(blendList[0].data, blendList[0].shape[1], blendList[0].shape[0], QtGui.QImage.Format_Grayscale8)))
+            self.notificationLine.setText(" Morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+        elif len(blendList) == 3:
+            self.blendedImage = np.dstack((blendList[0], blendList[1], blendList[2]))
+            self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], self.blendedImage.shape[1] * 3, QtGui.QImage.Format_RGB888)))
+            self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+        else:
+            self.blendedImage = np.dstack((blendList[0], blendList[1], blendList[2], blendList[3]))
+            self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], QtGui.QImage.Format_RGBA8888)))
+            self.notificationLine.setText(" RGBA morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+        self.updateMorphingWidget(True)
+        self.setFocus()
+
+    def frameFinished(self, blendList):
+        global start_time
+        if len(blendList) == 1:
+            self.blendList.append(blendList[0])
+            try:
+                temp = self.blendList[-1]
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)))
+            except IndexError:
+                pass
+        elif len(blendList) == 3:
+            self.blendList.append(np.dstack((blendList[0], blendList[1], blendList[2])))
+            try:
+                temp = self.blendList[-1]
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], temp.shape[1] * 3, QtGui.QImage.Format_RGB888)))
+            except IndexError:
+                pass
+        else:
+            self.blendList.append(np.dstack((blendList[0], blendList[1], blendList[2], blendList[3])))
+            try:
+                temp = self.blendList[-1]
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGBA8888)))
+            except IndexError:
+                pass
+
+        if self.threadQueue.empty() and len(self.blendList) == math.ceil(1 / self.fullBlendValue) + 1:
+            temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
+            if len(blendList) == 1:
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)))
+                self.notificationLine.setText(" Morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+            if len(blendList) == 3:
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], temp.shape[1] * 3, QtGui.QImage.Format_RGB888)))
+                self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+            else:
+                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGBA8888)))
+                self.notificationLine.setText(" RGBA morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+            self.updateMorphingWidget(True)
+            self.progressBar.setVisible(False)
+            self.fullBlendComplete = True
+        self.setFocus()
+
+    # Simple method for updating the progress bar during full blends
+    def updateProgress(self):
+        self.progressBar.setValue(self.progressBar.value() + round(1 / (1 / self.fullBlendValue + 1) * 100))
+
+    # Function override for when the program is closed.
+    # Ensures that the asynchronous resize event observer terminates and removes any temporary files generated.
+    def closeEvent(self, event):
+        self.openFlag = False
+        for file in os.listdir(ROOT_DIR):
+            if file.startswith("PIM_Temp_"):
+                os.remove(os.path.join(ROOT_DIR, file))
 
     # Macro function to save unnecessary repetitions of the same few lines of code.
     # Essentially reconfigures the alpha slider as the user works with the GUI.
@@ -128,6 +350,15 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.verifyValue("gif")
         self.notificationLine.setFocus()
 
+    def triangleRedValueDone(self):
+        self.verifyValue('red')
+
+    def triangleGreenValueDone(self):
+        self.verifyValue('green')
+
+    def triangleBlueValueDone(self):
+        self.verifyValue('blue')
+
     # Macro function to save unnecessary repetitions of the same few lines of code.
     # Essentially corrects invalid values that the user may enter for full blending and gif frame times..
     # then rounds to the best number that's closest to what the user specified in the input box.
@@ -148,6 +379,133 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 self.gifText.setText("0" + str(self.gifValue) + " ms")
             else:
                 self.gifText.setText(str(self.gifValue) + " ms")
+        elif param == "red":
+            value = 0
+            if self.comboBox.currentText() == 'Binary':
+                if self.triangleRedValue.text() != '': value = min(int(self.triangleRedValue.text(), 2), 255)
+                self.triangleRedSlider.setValue(value)
+                self.triangleRedValue.setText(bin(value)[2:].zfill(8))
+            elif self.comboBox.currentText() == 'Decimal':
+                if self.triangleRedValue.text() != '': value = min(int(self.triangleRedValue.text()), 255)
+                self.triangleRedSlider.setValue(value)
+                self.triangleRedValue.setText(str(value).zfill(3))
+            elif self.comboBox.currentText() == 'Hexadecimal':
+                if self.triangleRedValue.text() not in {'', '0x'}: value = min(int(self.triangleRedValue.text()[2:], 16), 255)
+                self.triangleRedSlider.setValue(value)
+                self.triangleRedValue.setText('0x' + hex(value)[2:].zfill(2).upper())
+            self.triangleRedValue.clearFocus()
+        elif param == "green":
+            value = 0
+            if self.comboBox.currentText() == 'Binary':
+                if self.triangleGreenValue.text() != '': value = min(int(self.triangleGreenValue.text(), 2), 255)
+                self.triangleGreenSlider.setValue(value)
+                self.triangleGreenValue.setText(bin(value)[2:].zfill(8))
+            elif self.comboBox.currentText() == 'Decimal':
+                if self.triangleGreenValue.text() != '': value = min(int(self.triangleGreenValue.text()), 255)
+                self.triangleGreenSlider.setValue(value)
+                self.triangleGreenValue.setText(str(value).zfill(3))
+            elif self.comboBox.currentText() == 'Hexadecimal':
+                if self.triangleGreenValue.text() not in {'', '0x'}: value = min(int(self.triangleGreenValue.text()[2:], 16), 255)
+                self.triangleGreenSlider.setValue(value)
+                self.triangleGreenValue.setText('0x' + hex(value)[2:].zfill(2).upper())
+            self.triangleGreenValue.clearFocus()
+        elif param == "blue":
+            value = 0
+            if self.comboBox.currentText() == 'Binary':
+                if self.triangleBlueValue.text() != '': value = min(int(self.triangleBlueValue.text(), 2), 255)
+                self.triangleBlueSlider.setValue(value)
+                self.triangleBlueValue.setText(bin(value)[2:].zfill(8))
+            elif self.comboBox.currentText() == 'Decimal':
+                if self.triangleBlueValue.text() != '': value = min(int(self.triangleBlueValue.text()), 255)
+                self.triangleBlueSlider.setValue(value)
+                self.triangleBlueValue.setText(str(value).zfill(3))
+            elif self.comboBox.currentText() == 'Hexadecimal':
+                if self.triangleBlueValue.text() not in {'', '0x'}: value = min(int(self.triangleBlueValue.text()[2:], 16), 255)
+                self.triangleBlueSlider.setValue(value)
+                self.triangleBlueValue.setText('0x' + hex(value)[2:].zfill(2).upper())
+            self.triangleBlueValue.clearFocus()
+
+    # Just for fun - a combo box function that dynamically changes the format of triangle color values.
+    # Currently works with Binary, Decimal, and Hexadecimal, but more could potentially be added later.
+    def updateTriangleFields(self):
+        if self.comboBox.currentText() == 'Binary':
+            redValue = '00000000'
+            greenValue = '00000000'
+            blueValue = '00000000'
+            # Decimal to Binary
+            if self.triangleRedValue.width() == self.triangleGreenValue.width() == self.triangleBlueValue.width() == 40:
+                if self.triangleRedValue.text() != '': redValue = bin(int(self.triangleRedValue.text()))[2:].zfill(8)
+                if self.triangleGreenValue.text() != '': greenValue = bin(int(self.triangleGreenValue.text()))[2:].zfill(8)
+                if self.triangleBlueValue.text() != '': blueValue = bin(int(self.triangleBlueValue.text()))[2:].zfill(8)
+            # Hexadecimal to Binary
+            elif self.triangleRedValue.width() == self.triangleGreenValue.width() == self.triangleBlueValue.width() == 50:
+                if self.triangleRedValue.text() not in {'', '0x'}: redValue = bin(int(self.triangleRedValue.text()[2:], 16))[2:].zfill(8)
+                if self.triangleGreenValue.text() not in {'', '0x'}: greenValue = bin(int(self.triangleGreenValue.text()[2:], 16))[2:].zfill(8)
+                if self.triangleBlueValue.text() not in {'', '0x'}: blueValue = bin(int(self.triangleBlueValue.text()[2:], 16))[2:].zfill(8)
+            self.triangleRedValue.setMinimumWidth(80)
+            self.triangleRedSlider.setMinimumWidth(160)
+            self.triangleGreenValue.setMinimumWidth(80)
+            self.triangleGreenSlider.setMinimumWidth(160)
+            self.triangleBlueValue.setMinimumWidth(80)
+            self.triangleBlueSlider.setMinimumWidth(160)
+            self.triangleRedValue.setInputMask("BBBBBBBB")
+            self.triangleGreenValue.setInputMask("BBBBBBBB")
+            self.triangleBlueValue.setInputMask("BBBBBBBB")
+            self.triangleRedValue.setText(redValue)
+            self.triangleGreenValue.setText(greenValue)
+            self.triangleBlueValue.setText(blueValue)
+        elif self.comboBox.currentText() == 'Decimal':
+            redValue = '000'
+            greenValue = '000'
+            blueValue = '000'
+            # Binary to Decimal:
+            if self.triangleRedValue.width() == self.triangleGreenValue.width() == self.triangleBlueValue.width() == 80:
+                if self.triangleRedValue.text() != '': redValue = str(int(self.triangleRedValue.text(), 2)).zfill(3)
+                if self.triangleGreenValue.text() != '': greenValue = str(int(self.triangleGreenValue.text(), 2)).zfill(3)
+                if self.triangleBlueValue.text() != '': blueValue = str(int(self.triangleBlueValue.text(), 2)).zfill(3)
+            # Hexadecimal to Decimal
+            elif self.triangleRedValue.width() == self.triangleGreenValue.width() == self.triangleBlueValue.width() == 50:
+                if self.triangleRedValue.text() not in {'', '0x'}: redValue = str(int(self.triangleRedValue.text()[2:], 16)).zfill(3)
+                if self.triangleGreenValue.text() not in {'', '0x'}: greenValue = str(int(self.triangleGreenValue.text()[2:], 16)).zfill(3)
+                if self.triangleBlueValue.text() not in {'', '0x'}: blueValue = str(int(self.triangleBlueValue.text()[2:], 16)).zfill(3)
+            self.triangleRedValue.setMinimumWidth(40)
+            self.triangleRedSlider.setMinimumWidth(200)
+            self.triangleGreenValue.setMinimumWidth(40)
+            self.triangleGreenSlider.setMinimumWidth(200)
+            self.triangleBlueValue.setMinimumWidth(40)
+            self.triangleBlueSlider.setMinimumWidth(200)
+            self.triangleRedValue.setInputMask("000")
+            self.triangleGreenValue.setInputMask("000")
+            self.triangleBlueValue.setInputMask("000")
+            self.triangleRedValue.setText(redValue)
+            self.triangleGreenValue.setText(greenValue)
+            self.triangleBlueValue.setText(blueValue)
+        elif self.comboBox.currentText() == 'Hexadecimal':
+            redValue = '0x00'
+            greenValue = '0x00'
+            blueValue = '0x00'
+            # Binary to Hexadecimal
+            if self.triangleRedValue.width() == self.triangleGreenValue.width() == self.triangleBlueValue.width() == 80:
+                if self.triangleRedValue.text() != '': redValue = '0x' + hex(int(self.triangleRedValue.text(), 2))[2:].zfill(2).upper()
+                if self.triangleGreenValue.text() != '': greenValue = '0x' + hex(int(self.triangleGreenValue.text(), 2))[2:].zfill(2).upper()
+                if self.triangleBlueValue.text() != '': blueValue = '0x' + hex(int(self.triangleBlueValue.text(), 2))[2:].zfill(2).upper()
+            # Decimal to Hexadecimal
+            elif self.triangleRedValue.width() == self.triangleGreenValue.width() == self.triangleBlueValue.width() == 40:
+                if self.triangleRedValue.text() != '': redValue = '0x' + hex(int(self.triangleRedValue.text()))[2:].zfill(2).upper()
+                if self.triangleGreenValue.text() != '': greenValue = '0x' + hex(int(self.triangleGreenValue.text()))[2:].zfill(2).upper()
+                if self.triangleBlueValue.text() != '': blueValue = '0x' + hex(int(self.triangleBlueValue.text()))[2:].zfill(2).upper()
+            self.triangleRedValue.setMinimumWidth(50)
+            self.triangleRedSlider.setMinimumWidth(190)
+            self.triangleGreenValue.setMinimumWidth(50)
+            self.triangleGreenSlider.setMinimumWidth(190)
+            self.triangleBlueValue.setMinimumWidth(50)
+            self.triangleBlueSlider.setMinimumWidth(190)
+            self.triangleRedValue.setInputMask("\\0\\xHH")
+            self.triangleGreenValue.setInputMask("\\0\\xHH")
+            self.triangleBlueValue.setInputMask("\\0\\xHH")
+            self.triangleRedValue.setText(redValue)
+            self.triangleGreenValue.setText(greenValue)
+            self.triangleBlueValue.setText(blueValue)
 
     # Workaround function that prevents unpredictable behavior with the triangle box
     def updateTriangleStatus(self):
@@ -171,6 +529,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.triangleRed.setText("<font color='black'>Red</font>")
             self.triangleGreen.setText("<font color='black'>Green</font>")
             self.triangleBlue.setText("<font color='black'>Blue</font>")
+        self.comboBox.setEnabled(val)
         self.triangleLabel.setEnabled(val)
         self.triangleRed.setEnabled(val)
         self.triangleGreen.setEnabled(val)
@@ -182,17 +541,29 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.triangleGreenValue.setEnabled(val)
         self.triangleBlueValue.setEnabled(val)
 
+    # Macro function to save unnecessary repetitions of the same few lines of code.
+    # Essentially toggles all functions within the morphing widget when necessary and where applicable.
+    def updateMorphingWidget(self, val):
+        self.blendButton.setEnabled(val and self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents())
+        self.alphaSlider.setEnabled(val)
+        self.blendBox.setEnabled(val)
+        self.blendText.setEnabled(val and self.blendBox.isChecked())
+        self.saveButton.setEnabled(val and (len(self.blendList) or self.blendedImage is not None))
+        self.resetSliderButton.setEnabled(val and self.alphaSlider.maximum() != 20)
+        self.resizeLeftButton.setEnabled(val)
+        self.resizeRightButton.setEnabled(val)
+        self.autoCornerButton.setEnabled(val and not (len(self.added_left_points) or len(self.added_right_points)))
+        self.resetPointsButton.setEnabled(val and (len(self.confirmed_left_points) or len(self.chosen_left_points) or len(self.confirmed_right_points) or len(self.chosen_right_points)))
+        self.transparencyBox.setEnabled(val)
+        self.alphaValue.setEnabled(val)
+        self.gifText.setEnabled(val and len(self.blendList))
+
     # Self-contained function that checks for the existence of corner points and adds any that are not already present.
     # Can not be invoked while a point is pending (in order to prevent exploits).
     # Written to dynamically work with triangles without any exploits.
     def autoCorner(self):
-        leftMaxX = min(math.ceil((self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x() - 1) * self.imageScalar[0]), self.leftSize[0] - 1)
-        leftMaxY = min(math.ceil((self.endingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y() - 1) * self.imageScalar[1]), self.leftSize[1] - 1)
-        rightMaxX = min(math.ceil((self.endingImage.geometry().topRight().x() - self.endingImage.geometry().topLeft().x() - 1) * self.imageScalar[0]), self.rightSize[0] - 1)
-        rightMaxY = min(math.ceil((self.endingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y() - 1) * self.imageScalar[1]), self.rightSize[1] - 1)
-
-        tempLeft = [QtCore.QPoint(0, 0), QtCore.QPoint(0, leftMaxY), QtCore.QPoint(leftMaxX, 0), QtCore.QPoint(leftMaxX, leftMaxY)]
-        tempRight = [QtCore.QPoint(0, 0), QtCore.QPoint(0, rightMaxY), QtCore.QPoint(rightMaxX, 0), QtCore.QPoint(rightMaxX, rightMaxY)]
+        tempLeft = [QtCore.QPoint(0, 0), QtCore.QPoint(0, self.startingImage.height() - 1), QtCore.QPoint(self.startingImage.width() - 1, 0), QtCore.QPoint(self.startingImage.width() - 1, self.startingImage.height() - 1)]
+        tempRight = [QtCore.QPoint(0, 0), QtCore.QPoint(0, self.endingImage.height() - 1), QtCore.QPoint(self.endingImage.width() - 1, 0), QtCore.QPoint(self.endingImage.width() - 1, self.endingImage.height() - 1)]
 
         self.triangleBox.setEnabled(1)
 
@@ -207,15 +578,24 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
 
                 with open(self.startingTextCorePath, "a") as startingFile:
                     if not os.stat(self.startingTextCorePath).st_size:  # left file is empty
-                        startingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].y(), ".1f"))))
+                        startingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_left_points[-1].x() * self.trueLeftSize[0] / self.leftSize[0], ".1f")), str(format(self.confirmed_left_points[-1].y() * self.trueLeftSize[1] / self.leftSize[1], ".1f"))))
                     else:
-                        startingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].y(), ".1f"))))
+                        startingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_left_points[-1].x() * self.trueLeftSize[0] / self.leftSize[0], ".1f")), str(format(self.confirmed_left_points[-1].y() * self.trueLeftSize[1] / self.leftSize[1], ".1f"))))
+                with open(self.leftTempTextPath, "a") as startingTempFile:
+                    if not os.stat(self.leftTempTextPath).st_size:  # left file is empty
+                        startingTempFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_left_points[-1].x(), ".1f")), str(format(self.confirmed_left_points[-1].y(), ".1f"))))
+                    else:
+                        startingTempFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_left_points[-1].x(), ".1f")), str(format(self.confirmed_left_points[-1].y(), ".1f"))))
                 with open(self.endingTextCorePath, "a") as endingFile:
-                    if not os.stat(self.endingTextCorePath).st_size:  # if right file is empty
-                        endingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].y(), ".1f"))))
+                    if not os.stat(self.endingTextCorePath).st_size:  # right file is empty
+                        endingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_right_points[-1].x() * self.trueRightSize[0] / self.rightSize[0], ".1f")), str(format(self.confirmed_right_points[-1].y() * self.trueRightSize[1] / self.rightSize[1], ".1f"))))
                     else:
-                        endingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].y(), ".1f"))))
-
+                        endingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[-1].x() * self.trueRightSize[0] / self.rightSize[0], ".1f")), str(format(self.confirmed_right_points[-1].y() * self.trueRightSize[1] / self.rightSize[1], ".1f"))))
+                with open(self.rightTempTextPath, "a") as endingTempFile:
+                    if not os.stat(self.rightTempTextPath).st_size:  # right file is empty
+                        endingTempFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_right_points[-1].x(), ".1f")), str(format(self.confirmed_right_points[-1].y(), ".1f"))))
+                    else:
+                        endingTempFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[-1].x(), ".1f")), str(format(self.confirmed_right_points[-1].y(), ".1f"))))
         if counter:
             self.refreshPaint()
             if counter == 1:
@@ -231,59 +611,88 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.blendButton.setEnabled(1)
         self.resetPointsButton.setEnabled(1)
 
-    # Function that wipes the slate clean, erasing all placed points from the GUI and relevant files.
-    # Similar to autoCorner, this has been written to dynamically work with triangles without any exploits.
+    # When confirmed, wipes the slate clean, erasing all placed points from the GUI and relevant files.
     def resetPoints(self):
-        self.triangleUpdatePref = int(self.triangleBox.isChecked())
-        self.blendButton.setEnabled(0)
-        self.resetPointsButton.setEnabled(0)
-        self.autoCornerButton.setEnabled(1)
-        self.triangleBox.setChecked(0)
-        self.triangleBox.setEnabled(0)
-        self.added_left_points.clear()
-        self.added_right_points.clear()
-        self.confirmed_left_points.clear()
-        self.confirmed_right_points.clear()
-        self.chosen_left_points.clear()
-        self.chosen_right_points.clear()
-        self.leftPolyList.clear()
-        self.rightPolyList.clear()
+        userResponse = QtWidgets.QMessageBox.question(self, "Warning", "Are you sure you want to reset points?", QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel)
+        if userResponse == QtWidgets.QMessageBox.Yes:
+            self.triangleUpdatePref = int(self.triangleBox.isChecked())
+            self.blendButton.setEnabled(0)
+            self.resetPointsButton.setEnabled(0)
+            self.autoCornerButton.setEnabled(1)
+            self.triangleBox.setChecked(0)
+            self.triangleBox.setEnabled(0)
+            self.added_left_points.clear()
+            self.added_right_points.clear()
+            self.confirmed_left_points.clear()
+            self.confirmed_right_points.clear()
+            self.chosen_left_points.clear()
+            self.chosen_right_points.clear()
+            self.leftPolyList.clear()
+            self.rightPolyList.clear()
 
-        if os.path.isfile(self.startingTextCorePath):
-            os.remove(self.startingTextCorePath)
+            if os.path.isfile(self.startingTextCorePath):
+                os.remove(self.startingTextCorePath)
 
-        if os.path.isfile(self.endingTextCorePath):
-            os.remove(self.endingTextCorePath)
+            if os.path.isfile(self.endingTextCorePath):
+                os.remove(self.endingTextCorePath)
 
-        self.enableDeletion = 0
-        self.refreshPaint()
+            if os.path.isfile(self.leftTempTextPath):
+                os.remove(self.leftTempTextPath)
 
-        self.notificationLine.setText(" Successfully reset points.")
+            if os.path.isfile(self.rightTempTextPath):
+                os.remove(self.rightTempTextPath)
+
+            self.enableDeletion = 0
+            self.refreshPaint()
+
+            self.notificationLine.setText(" Successfully reset points.")
+
+    # Macro function to save unnecessary repetitions of the same few lines of code.
+    # Deletes the user's highlighted point pair (in delete mode) from all four relevant files in use.
+    def deletePoint(self, filePath):
+        index = self.movingPoint[2] + (0 if self.movingPoint[0] == 'red' else (len(self.chosen_left_points) if 'left' in filePath else len(self.chosen_right_points)))
+        data = open(filePath, 'r').readlines()
+        del data[index]
+        if data:
+            if len(data) > index:
+                data[index] = data[index][0:int(len(data[index]) - 1)]  # Remove \n
+            else:
+                data[-1] = data[-1][0:int(len(data[-1]) - 1)]  # Remove \n
+            open(filePath, 'w').writelines(data)
+        else:
+            os.remove(filePath)
 
     # Function that resets the alpha slider (for use after setting a full blend value that has modified the slider).
     # Resets the full blend value as well, just to prevent any weird behavior from ever occurring.
     def resetAlphaSlider(self):
+        self.fullBlendComplete = False
         self.alphaSlider.setMaximum(20)
         self.alphaSlider.setTickInterval(2)
         self.fullBlendValue = 0.05
-        self.blendText.setText(str(self.fullBlendValue))
-        self.alphaValue.setText(str(0.0))
-        self.alphaSlider.setValue(0)
+        self.blendText.setText('0.05')
+        self.alphaValue.setText('0.5')
+        self.alphaSlider.setValue(10)
         self.resetSliderButton.setEnabled(0)
 
     # Function that handles the rendering of points and triangles onto the GUI when manually called.
     # Dynamically handles changes in point and polygon lists to be compatible with resetPoints, autoCorner, etc.
-    # TODO: Modify pointWidth to be a function of image size
     def paintEvent(self, paint_event):
-        if self.changeFlag or self.pointSlider.valueChanged:
-            leftPic = QtGui.QPixmap(self.startingImagePath)
-            rightPic = QtGui.QPixmap(self.endingImagePath)
+        if self.changeFlag or self.pointSlider.valueChanged or self.zoomSlider.valueChanged:
+            if os.path.exists(self.leftTempPath):
+                leftPic = QtGui.QPixmap(self.leftTempPath)
+            else:
+                leftPic = QtGui.QPixmap(self.startingImagePath)
+            if os.path.exists(self.rightTempPath):
+                rightPic = QtGui.QPixmap(self.rightTempPath)
+            else:
+                rightPic = QtGui.QPixmap(self.endingImagePath)
             pen = QtGui.QPen()
             pen.setWidth(self.pointSlider.value())
             leftpainter = QtGui.QPainter(leftPic)
             rightpainter = QtGui.QPainter(rightPic)
             pointWidth = self.pointSlider.value()
 
+            # Handles drawing the currently loaded images' delaunay triangles, if enabled
             if self.triangleUpdate == 1:
                 if len(self.leftPolyList) == len(self.rightPolyList) > 0:
                     pointWidth *= 1.7
@@ -309,15 +718,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             for x in self.confirmed_left_points:
                 leftpainter.drawEllipse(x, pointWidth, pointWidth)
 
-            if not self.leftZoomData:
-                self.startingImage.setPixmap(leftPic)
-            else:
-                self.leftZoomData[2] = min(max(0, self.leftZoomData[0] - int(self.leftSize[0] / 4)), int(self.leftSize[0] * 0.5))
-                self.leftZoomData[3] = min(max(0, self.leftZoomData[1] - int(self.leftSize[1] / 4)), int(self.leftSize[0] * 0.5))
-                temp = leftPic.copy(QtCore.QRect(self.leftZoomData[2], self.leftZoomData[3], int(self.leftSize[0] / 2), int(self.leftSize[1] / 2)))
-                self.startingImage.setPixmap(temp)
-            leftpainter.end()
-
             rightpainter.setBrush(QtGui.QColor(255, 0, 0, 255))
             for x in self.chosen_right_points:
                 rightpainter.drawEllipse(x, pointWidth, pointWidth)
@@ -330,19 +730,100 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             for x in self.confirmed_right_points:
                 rightpainter.drawEllipse(x, pointWidth, pointWidth)
 
+            # When in Move Mode: Handles "dragging" of the point that is being moved elsewhere
+            # Additionally highlights the other image's corresponding point affected by the current change in order to aid the user's understanding of their action
+            if self.hoverFlag:
+                if self.movingPoint[1] == 'LEFT':
+                    leftpainter.setBrush(QtGui.QColor('black'))
+                    leftpainter.drawEllipse(self.movingPoint[4], pointWidth + 1, pointWidth + 1)
+                    leftpainter.setBrush(QtGui.QColor(self.movingPoint[0]))
+                    leftpainter.drawEllipse(self.movingPoint[4], pointWidth, pointWidth)
+                    rightpainter.setBrush(QtGui.QColor('black'))
+                    rightpainter.drawEllipse((self.confirmed_right_points if self.movingPoint[0] == 'blue' else self.chosen_right_points)[self.movingPoint[2]], pointWidth + 1, pointWidth + 1)
+                    rightpainter.setBrush(QtGui.QColor('yellow'))
+                    rightpainter.drawEllipse((self.confirmed_right_points if self.movingPoint[0] == 'blue' else self.chosen_right_points)[self.movingPoint[2]], pointWidth, pointWidth)
+                elif self.movingPoint[1] == 'RIGHT':
+                    rightpainter.setBrush(QtGui.QColor('black'))
+                    rightpainter.drawEllipse(self.movingPoint[4], pointWidth + 1, pointWidth + 1)
+                    rightpainter.setBrush(QtGui.QColor(self.movingPoint[0]))
+                    rightpainter.drawEllipse(self.movingPoint[4], pointWidth, pointWidth)
+                    leftpainter.setBrush(QtGui.QColor('black'))
+                    leftpainter.drawEllipse((self.confirmed_left_points if self.movingPoint[0] == 'blue' else self.chosen_left_points)[self.movingPoint[2]], pointWidth + 1, pointWidth + 1)
+                    leftpainter.setBrush(QtGui.QColor('yellow'))
+                    leftpainter.drawEllipse((self.confirmed_left_points if self.movingPoint[0] == 'blue' else self.chosen_left_points)[self.movingPoint[2]], pointWidth, pointWidth)
+
+            # Determines how the image is ultimately rendered onto the GUI, depending on whether or not there is any zoom applied to either image
+            if not self.leftZoomData:
+                self.startingImage.setPixmap(leftPic)
+            else:
+                self.leftZoomData[2] = min(max(0, self.leftZoomData[0] - int(self.leftSize[0] / int(self.zoomSlider.value() * 2))), self.leftSize[0] - int(self.leftSize[0] / self.zoomSlider.value()))
+                self.leftZoomData[3] = min(max(0, self.leftZoomData[1] - int(self.leftSize[1] / int(self.zoomSlider.value() * 2))), self.leftSize[1] - int(self.leftSize[1] / self.zoomSlider.value()))
+                temp = leftPic.copy(QtCore.QRect(int(self.leftZoomData[2]), int(self.leftZoomData[3]), int(self.leftSize[0] / self.zoomSlider.value()), int(self.leftSize[1] / self.zoomSlider.value())))
+                self.startingImage.setPixmap(temp)
             if not self.rightZoomData:
                 self.endingImage.setPixmap(rightPic)
             else:
-                self.rightZoomData[2] = min(max(0, self.rightZoomData[0] - int(self.rightSize[0] / 4)), int(self.rightSize[0] * 0.5))
-                self.rightZoomData[3] = min(max(0, self.rightZoomData[1] - int(self.rightSize[1] / 4)), int(self.rightSize[0] * 0.5))
-                temp = rightPic.copy(QtCore.QRect(self.rightZoomData[2], self.rightZoomData[3], int(self.rightSize[0] / 2), int(self.rightSize[1] / 2)))
+                self.rightZoomData[2] = min(max(0, self.rightZoomData[0] - int(self.rightSize[0] / int(self.zoomSlider.value() * 2))), self.rightSize[0] - int(self.rightSize[0] / self.zoomSlider.value()))
+                self.rightZoomData[3] = min(max(0, self.rightZoomData[1] - int(self.rightSize[1] / int(self.zoomSlider.value() * 2))), self.rightSize[1] - int(self.rightSize[1] / self.zoomSlider.value()))
+                temp = rightPic.copy(QtCore.QRect(int(self.rightZoomData[2]), int(self.rightZoomData[3]), int(self.rightSize[0] / self.zoomSlider.value()), int(self.rightSize[1] / self.zoomSlider.value())))
                 self.endingImage.setPixmap(temp)
 
+            leftpainter.end()
             rightpainter.end()
-
             self.changeFlag = False
 
+    # Event handler that allows the GUI to react to when the user hovers a file over the GUI
+    # If the file is a supported image type, the GUI acknowledges it as acceptable; otherwise, the GUI rejects it
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls:
+            if os.path.splitext(e.mimeData().urls()[0].toLocalFile())[1] in ('.jpg', '.jpeg', '.png'):
+                e.accept()
+                return
+        e.ignore()  # else condition, for when the dragged file is not a supported image (e.g. a text file)
+
+    # Event handler that loads supported images if they are dropped onto one of the input windows
+    def dropEvent(self, e):
+        if 15 < e.pos().x() < self.startingImage.geometry().topRight().x() + 15 and 38 < e.pos().y() < self.startingImage.geometry().bottomRight().y() + 38:
+            self.startingImagePath = str(e.mimeData().urls()[0].toLocalFile())
+            self.loadDataLeft(True)
+        elif self.endingImage.geometry().topLeft().x() + 12 < e.pos().x() < self.endingImage.geometry().topRight().x() + 12 and 38 < e.pos().y() < self.endingImage.geometry().bottomRight().y() + 38:
+            self.endingImagePath = str(e.mimeData().urls()[0].toLocalFile())
+            self.loadDataRight(True)
+
+    # Event handler for mouse scrolling
+    #   Mouse Wheel Up   → Value Increase
+    #   Mouse Wheel Down → Value Decrease
+    #       CTRL  + Wheel: Macro for the zoom  slider
+    #       Shift + Wheel: Macro for the point slider
+    #       Alt   + Wheel: Macro for the alpha slider
+    def wheelEvent(self, wheel_event):
+        # Zoom Slider Macro
+        if wheel_event.modifiers() == QtCore.Qt.ControlModifier:
+            if wheel_event.angleDelta().y() > 0:
+                self.zoomSlider.setValue(self.zoomSlider.value() + 1)
+            elif wheel_event.angleDelta().y() < 0:
+                self.zoomSlider.setValue(self.zoomSlider.value() - 1)
+            self.refreshPaint()
+        # Point Slider Macro
+        if wheel_event.modifiers() == QtCore.Qt.ShiftModifier:
+            if wheel_event.angleDelta().y() > 0:
+                self.pointSlider.setValue(self.pointSlider.value() + 1)
+            elif wheel_event.angleDelta().y() < 0:
+                self.pointSlider.setValue(self.pointSlider.value() - 1)
+            self.refreshPaint()
+        # Alpha Slider Macro
+        if wheel_event.modifiers() == QtCore.Qt.AltModifier:
+            if self.alphaSlider.isEnabled():
+                if wheel_event.angleDelta().x() > 0:
+                    self.alphaSlider.setValue(self.alphaSlider.value() + 1)
+                elif wheel_event.angleDelta().x() < 0:
+                    self.alphaSlider.setValue(self.alphaSlider.value() - 1)
+
     # Event handler for keystrokes
+    # D toggles the display of delaunay triangles, when possible
+    # Q toggles Delete Mode, which is used with the mouse to manually delete specific point pairs
+    # E toggles Move Mode, which is used with the mouse to manually move specific points
+    # Tab and Shift + Tab will non-circularly switch to the next and previous tab, respectively
     # CTRL + Z will either:
     #       1) Undo the most recently placed temporary (green) point [NOT "the last placed temporary point"], or
     #       2) Undo the most recent confirmed (blue) point pair
@@ -352,18 +833,65 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     #       a) It can not be invoked more than one time in succession, and
     #       b) It has no effect on confirmed (blue) points
     def keyPressEvent(self, key_event):
+        # Display Triangles Toggle
+        if type(key_event) == QtGui.QKeyEvent and key_event.modifiers() == QtCore.Qt.NoModifier and key_event.key() == QtCore.Qt.Key_D and self.triangleBox.isEnabled():
+            self.triangleBox.setChecked(not self.triangleBox.isChecked())
+            self.displayTriangles()
+        # Delete Mode Toggle
+        if type(key_event) == QtGui.QKeyEvent and key_event.modifiers() == QtCore.Qt.NoModifier and key_event.key() == QtCore.Qt.Key_Q:
+            if self.deleteMode:
+                self.deleteMode = False
+                QApplication.restoreOverrideCursor()
+                QApplication.setOverrideCursor(QtCore.Qt.CursorShape.ArrowCursor)
+                QApplication.restoreOverrideCursor()
+                self.setMouseTracking(False)
+                self.notificationLine.setText(" Delete Mode: Disabled")
+            else:
+                self.deleteMode = True
+                QApplication.restoreOverrideCursor()
+                QApplication.setOverrideCursor(QtCore.Qt.CursorShape.CrossCursor)
+                self.setMouseTracking(True)
+                if self.moveMode:
+                    self.moveMode = False
+                    self.notificationLine.setText(" Switched Mode: Delete Mode")
+                else:
+                    self.notificationLine.setText(" Delete Mode: Enabled")
+        # Move Move Toggle
+        if type(key_event) == QtGui.QKeyEvent and key_event.modifiers() == QtCore.Qt.NoModifier and key_event.key() == QtCore.Qt.Key_E:
+            if self.moveMode:
+                self.moveMode = False
+                QApplication.restoreOverrideCursor()
+                QApplication.setOverrideCursor(QtCore.Qt.CursorShape.ArrowCursor)
+                QApplication.restoreOverrideCursor()
+                self.setMouseTracking(False)
+                self.notificationLine.setText(" Move Mode: Disabled")
+            else:
+                self.moveMode = True
+                QApplication.restoreOverrideCursor()
+                QApplication.setOverrideCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+                self.setMouseTracking(True)
+                if self.deleteMode:
+                    self.deleteMode = False
+                    self.notificationLine.setText(" Switched Mode: Move Mode")
+                else:
+                    self.notificationLine.setText(" Move Mode: Enabled")
+
+        # Next Tab
+        if type(key_event) == QtGui.QKeyEvent and key_event.modifiers() == QtCore.Qt.NoModifier and key_event.key() == QtCore.Qt.Key_Tab:
+            self.tabWidget.setCurrentIndex(min(self.tabWidget.currentIndex() + 1, self.tabWidget.count()))
+        # Previous Tab
+        if type(key_event) == QtGui.QKeyEvent and key_event.modifiers() == QtCore.Qt.ShiftModifier and key_event.key() == QtCore.Qt.Key_Tab:
+            self.tabWidget.setCurrentIndex(max(self.tabWidget.currentIndex() - 1, 0))
         # Undo
         if type(key_event) == QtGui.QKeyEvent and key_event.modifiers() == QtCore.Qt.ControlModifier and key_event.key() == QtCore.Qt.Key_Z:
             undoFlag = 0
             if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
                 if self.clicked_window_history[-1] == 1 and len(self.added_right_points):
                     self.placed_points_history.append([self.added_right_points.pop(), self.clicked_window_history.pop()])
-                    self.refreshPaint()
                     undoFlag = 1
                     self.notificationLine.setText(" Removed right temporary point!")
                 elif self.clicked_window_history[-1] == 0 and len(self.added_left_points):
                     self.placed_points_history.append([self.added_left_points.pop(), self.clicked_window_history.pop()])
-                    self.refreshPaint()
                     undoFlag = 1
                     self.notificationLine.setText(" Removed left temporary point!")
                 elif len(self.confirmed_left_points) and len(self.confirmed_right_points):
@@ -386,6 +914,21 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     else:
                         os.remove(self.endingTextCorePath)
 
+                    data3 = open(self.leftTempTextPath, 'r').readlines()
+                    del data3[-1]
+                    if data3:
+                        data3[-1] = data3[-1][0:int(len(data3[-1]) - 1)]  # Remove \n from the previously second to last line
+                        open(self.leftTempTextPath, 'w').writelines(data3)
+                    else:
+                        os.remove(self.leftTempTextPath)
+                    data4 = open(self.rightTempTextPath, 'r').readlines()
+                    del data4[-1]
+                    if data4:
+                        data4[-1] = data4[-1][0:int(len(data4[-1]) - 1)]  # Remove \n from the previously second to last line
+                        open(self.rightTempTextPath, 'w').writelines(data4)
+                    else:
+                        os.remove(self.rightTempTextPath)
+
                     if len(self.chosen_left_points) + len(self.confirmed_left_points) >= 3:
                         self.displayTriangles()
                         self.blendButton.setEnabled(1)
@@ -397,9 +940,9 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                         self.displayTriangles()
                         if len(self.chosen_left_points) + len(self.confirmed_left_points) == 0:
                             self.resetPointsButton.setEnabled(0)
-                    self.refreshPaint()
                     undoFlag = 1
                     self.notificationLine.setText(" Removed confirmed point pair!")
+                self.refreshPaint()
             self.autoCornerButton.setEnabled(len(self.added_left_points) == len(self.added_right_points) == 0)
             if undoFlag == 0:
                 self.notificationLine.setText(" Can't undo!")
@@ -432,21 +975,21 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 with open(self.startingTextCorePath, "a") as startingFile:
                     if not os.stat(self.startingTextCorePath).st_size:  # left file is empty
                         startingFile.write('{:>8}{:>8}'.format(
-                            str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].x(), ".1f")),
-                            str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].y(), ".1f"))))
+                            str(format(self.confirmed_left_points[-1].x(), ".1f")),
+                            str(format(self.confirmed_left_points[-1].y(), ".1f"))))
                     else:
                         startingFile.write('\n{:>8}{:>8}'.format(
-                            str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].x(), ".1f")),
-                            str(format(self.confirmed_left_points[len(self.confirmed_left_points) - 1].y(), ".1f"))))
+                            str(format(self.confirmed_left_points[-1].x(), ".1f")),
+                            str(format(self.confirmed_left_points[-1].y(), ".1f"))))
                 with open(self.endingTextCorePath, "a") as endingFile:
                     if not os.stat(self.endingTextCorePath).st_size:  # right file is empty
                         endingFile.write('{:>8}{:>8}'.format(
-                            str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].x(), ".1f")),
-                            str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].y(), ".1f"))))
+                            str(format(self.confirmed_right_points[-1].x(), ".1f")),
+                            str(format(self.confirmed_right_points[-1].y(), ".1f"))))
                     else:
                         endingFile.write('\n{:>8}{:>8}'.format(
-                            str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].x(), ".1f")),
-                            str(format(self.confirmed_right_points[len(self.confirmed_right_points) - 1].y(), ".1f"))))
+                            str(format(self.confirmed_right_points[-1].x(), ".1f")),
+                            str(format(self.confirmed_right_points[-1].y(), ".1f"))))
                 self.refreshPaint()
                 self.displayTriangles()
                 self.autoCornerButton.setEnabled(1)
@@ -468,29 +1011,103 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.notificationLine.setText(" Successfully deleted recent temporary point.")
                 self.autoCornerButton.setEnabled(len(self.added_left_points) == len(self.added_right_points) == 0)
 
-    # Function override of the window resize event. Fairly lightweight.
-    # Currently recalculates the necessary scalar and size values to keep image displays and point placements accurate.
+    # Function override of the window resize event.
+    # On invocation, recalculates the necessary scalar and size values to keep image displays and point placements accurate.
+    # Additionally triggers an "observer" that watches for when resizeEvent() stops firing in order to call resizeImages().
     def resizeEvent(self, event):
-        self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
-        self.startingImage.setFixedWidth(self.blendingImage.width())
-        self.endingImage.setFixedWidth(self.blendingImage.width())
+        if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
+            self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
+
+            if not self.resizeFlag:
+                self.resizeFlag = True
+
+                # Instantiate pynput's mouse listener to track when the mouse is released (i.e., when the user stops resizing)
+                listener = mouse.Listener(
+                    on_click=on_click)
+                listener.start()
+                # self.checkMouse()
+
+    # Function that resizes the source image + point data to the current size of the GUI's image windows.
+    def resizeImages(self):
+        if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
+            self.resizeFlag = False
+
+            try:
+                temp1 = cv2.imread(self.startingImagePath, cv2.IMREAD_UNCHANGED)
+                tempLeft = cv2.resize(temp1, (self.startingImage.width(), self.startingImage.height()), interpolation=cv2.INTER_AREA)
+            except:
+                temp1 = cv2.imdecode(np.fromfile(self.startingImagePath, dtype=np.uint8), -1)
+                tempLeft = cv2.resize(temp1, (self.startingImage.width(), self.startingImage.height()), interpolation=cv2.INTER_AREA)
+            cv2.imwrite(self.leftTempPath, tempLeft)
+            self.leftSize = (tempLeft.shape[1], tempLeft.shape[0])
+
+            try:
+                temp2 = cv2.imread(self.endingImagePath, cv2.IMREAD_UNCHANGED)
+                tempRight = cv2.resize(temp2, (self.endingImage.width(), self.endingImage.height()), interpolation=cv2.INTER_AREA)
+            except:
+                temp2 = cv2.imdecode(np.fromfile(self.endingImagePath, dtype=np.uint8), -1)
+                tempRight = cv2.resize(temp2, (self.endingImage.width(), self.endingImage.height()), interpolation=cv2.INTER_AREA)
+            cv2.imwrite(self.rightTempPath, tempRight)
+            self.rightSize = (tempRight.shape[1], tempRight.shape[0])
+
+            # Update Text Files (for Triangle Display)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                if os.path.isfile(self.leftTempTextPath):
+                    tempData = np.loadtxt(self.leftTempTextPath)
+                    for x in tempData:
+                        x *= (self.leftSize[0] / self.lastLeftSize[0], self.leftSize[1] / self.lastLeftSize[1])
+                    np.savetxt(self.leftTempTextPath, tempData, fmt='%.1f')
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                if os.path.isfile(self.rightTempTextPath):
+                    tempData = np.loadtxt(self.rightTempTextPath)
+                    for y in tempData:
+                        y *= (self.rightSize[0] / self.lastRightSize[0], self.rightSize[1] / self.lastRightSize[1])
+                    np.savetxt(self.rightTempTextPath, tempData, fmt='%.1f')
+
+            # Scale Green Points
+            if self.added_left_points:
+                self.added_left_points[0] = QtCore.QPoint(int(self.added_left_points[0].x() * self.leftSize[0] / self.lastLeftSize[0]), int(self.added_left_points[0].y() * self.leftSize[1] / self.lastLeftSize[1]))
+            if self.added_right_points:
+                self.added_right_points[0] = QtCore.QPoint(int(self.added_right_points[0].x() * self.rightSize[0] / self.lastRightSize[0]), int(self.added_right_points[0].y() * self.rightSize[1] / self.lastRightSize[1]))
+
+            # Scale Blue Points
+            for index, (leftPointPair, rightPointPair) in enumerate(zip(self.confirmed_left_points, self.confirmed_right_points)):
+                self.confirmed_left_points[index] = QtCore.QPoint(round(leftPointPair.x() * self.leftSize[0] / self.lastLeftSize[0]), round(leftPointPair.y() * self.leftSize[1] / self.lastLeftSize[1]))
+                self.confirmed_right_points[index] = QtCore.QPoint(round(rightPointPair.x() * self.rightSize[0] / self.lastRightSize[0]), round(rightPointPair.y() * self.rightSize[1] / self.lastRightSize[1]))
+
+            # Scale Red Points
+            for index, (leftPointPair, rightPointPair) in enumerate(zip(self.chosen_left_points, self.chosen_right_points)):
+                self.chosen_left_points[index] = QtCore.QPoint(round(leftPointPair.x() * self.leftSize[0] / self.lastLeftSize[0]), round(leftPointPair.y() * self.leftSize[1] / self.lastLeftSize[1]))
+                self.chosen_right_points[index] = QtCore.QPoint(round(rightPointPair.x() * self.rightSize[0] / self.lastRightSize[0]), round(rightPointPair.y() * self.rightSize[1] / self.lastRightSize[1]))
+
+            self.lastLeftSize = (self.startingImage.width(), self.startingImage.height())
+            self.lastRightSize = (self.endingImage.width(), self.endingImage.height())
+            self.imageScalar = (self.leftSize[0] / self.startingImage.width(), self.leftSize[1] / self.startingImage.height())
+            self.displayTriangles()
+            self.refreshPaint()
 
     # Function that resizes a copy of the left image to the right image's dimensions
     def resizeLeft(self):
-        if self.leftSize != self.rightSize:
-            img = Image.open(self.startingImagePath)
-            img = img.resize((self.rightSize[0], self.rightSize[1]), Image.ANTIALIAS)
+        if self.trueLeftSize != self.trueRightSize:
+            try:
+                img = cv2.imread(self.startingImagePath, cv2.IMREAD_UNCHANGED)
+                img = cv2.resize(img, (self.trueRightSize[0], self.trueRightSize[1]), interpolation=cv2.INTER_AREA)
+            except:
+                img = cv2.imdecode(np.fromfile(self.startingImagePath, dtype=np.uint8), -1)
+                img = cv2.resize(img, (self.trueRightSize[0], self.trueRightSize[1]), interpolation=cv2.INTER_AREA)
 
             for index, pointPair in enumerate(self.chosen_left_points):
-                self.chosen_left_points[index] = QtCore.QPoint(int(pointPair.x() * self.rightSize[0] / self.leftSize[0]), int(pointPair.y() * self.rightSize[1] / self.leftSize[1]))
+                self.chosen_left_points[index] = QtCore.QPoint(int(pointPair.x() * self.trueRightSize[0] / self.leftSize[0]), int(pointPair.y() * self.trueRightSize[1] / self.leftSize[1]))
             for index, pointPair in enumerate(self.confirmed_left_points):
-                self.confirmed_left_points[index] = QtCore.QPoint(int(pointPair.x() * self.rightSize[0] / self.leftSize[0]), int(pointPair.y() * self.rightSize[1] / self.leftSize[1]))
+                self.confirmed_left_points[index] = QtCore.QPoint(int(pointPair.x() * self.trueRightSize[0] / self.leftSize[0]), int(pointPair.y() * self.trueRightSize[1] / self.leftSize[1]))
             for index, pointPair in enumerate(self.added_left_points):
-                self.added_left_points[index] = QtCore.QPoint(int(pointPair.x() * self.rightSize[0] / self.leftSize[0]), int(pointPair.y() * self.rightSize[1] / self.leftSize[1]))
+                self.added_left_points[index] = QtCore.QPoint(int(pointPair.x() * self.trueRightSize[0] / self.leftSize[0]), int(pointPair.y() * self.trueRightSize[1] / self.leftSize[1]))
 
-            path = ROOT_DIR + '/Images_Points/' + self.startingImageName + '-' + str(self.rightSize[0]) + 'x' + str(self.rightSize[1]) + self.startingImageType
-            textPath = ROOT_DIR + '/Images_Points/' + self.startingImageName + '-' + str(self.rightSize[0]) + 'x' + str(self.rightSize[1]) + '-' + self.startingImageType[1:] + '.txt'
-            img.save(path)
+            path = ROOT_DIR + '/Images_Points/' + self.startingImageName + '-' + str(self.trueRightSize[0]) + 'x' + str(self.trueRightSize[1]) + self.startingImageType
+            textPath = ROOT_DIR + '/Images_Points/' + self.startingImageName + '-' + str(self.trueRightSize[0]) + 'x' + str(self.trueRightSize[1]) + '-' + self.startingImageType[1:] + '.txt'
+            cv2.imwrite(path, img)
 
             open(textPath, 'w').close()
             writeFlag = False
@@ -511,28 +1128,32 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.startingImagePath = path
             self.startingTextCorePath = textPath
             self.startingImage.setPixmap(QtGui.QPixmap(self.startingImagePath))
-            self.notificationLine.setText(" Successfully resized left image from " + str(self.leftSize[0]) + "x" + str(self.leftSize[1]) + " to " + str(self.rightSize[0]) + "x" + str(self.rightSize[1]))
-            self.leftSize = self.rightSize
+            self.notificationLine.setText(" Successfully resized left image from " + str(self.leftSize[0]) + "x" + str(self.trueLeftSize[1]) + " to " + str(self.trueRightSize[0]) + "x" + str(self.rightSize[1]))
+            self.trueLeftSize = self.trueRightSize
             self.checkResize()
         else:
             self.notificationLine.setText(" Can't resize the left image - both images share the same dimensions!")
 
     # Function that resizes a copy of the right image to the left image's dimensions
     def resizeRight(self):
-        if self.leftSize != self.rightSize:
-            img = Image.open(self.endingImagePath)
-            img = img.resize((self.leftSize[0], self.leftSize[1]), Image.ANTIALIAS)
+        if self.trueLeftSize != self.trueRightSize:
+            try:
+                img = cv2.imread(self.endingImagePath, cv2.IMREAD_UNCHANGED)
+                img = cv2.resize(img, (self.trueLeftSize[0], self.trueLeftSize[1]), interpolation=cv2.INTER_AREA)
+            except:
+                img = cv2.imdecode(np.fromfile(self.endingImagePath, dtype=np.uint8), -1)
+                img = cv2.resize(img, (self.trueLeftSize[0], self.trueLeftSize[1]), interpolation=cv2.INTER_AREA)
 
             for index, pointPair in enumerate(self.chosen_right_points):
-                self.chosen_right_points[index] = QtCore.QPoint(int(pointPair.x() * self.leftSize[0] / self.rightSize[0]), int(pointPair.y() * self.leftSize[1] / self.rightSize[1]))
+                self.chosen_right_points[index] = QtCore.QPoint(int(pointPair.x() * self.trueLeftSize[0] / self.rightSize[0]), int(pointPair.y() * self.trueLeftSize[1] / self.rightSize[1]))
             for index, pointPair in enumerate(self.confirmed_right_points):
-                self.confirmed_right_points[index] = QtCore.QPoint(int(pointPair.x() * self.leftSize[0] / self.rightSize[0]), int(pointPair.y() * self.leftSize[1] / self.rightSize[1]))
+                self.confirmed_right_points[index] = QtCore.QPoint(int(pointPair.x() * self.trueLeftSize[0] / self.rightSize[0]), int(pointPair.y() * self.trueLeftSize[1] / self.rightSize[1]))
             for index, pointPair in enumerate(self.added_right_points):
-                self.added_right_points[index] = QtCore.QPoint(int(pointPair.x() * self.leftSize[0] / self.rightSize[0]), int(pointPair.y() * self.leftSize[1] / self.rightSize[1]))
+                self.added_right_points[index] = QtCore.QPoint(int(pointPair.x() * self.trueLeftSize[0] / self.rightSize[0]), int(pointPair.y() * self.trueLeftSize[1] / self.rightSize[1]))
 
-            path = ROOT_DIR + '/Images_Points/' + self.endingImageName + '-' + str(self.leftSize[0]) + 'x' + str(self.leftSize[1]) + self.endingImageType
-            textPath = ROOT_DIR + '/Images_Points/' + self.endingImageName + '-' + str(self.leftSize[0]) + 'x' + str(self.leftSize[1]) + '-' + self.endingImageType[1:] + '.txt'
-            img.save(path)
+            path = ROOT_DIR + '/Images_Points/' + self.endingImageName + '-' + str(self.trueLeftSize[0]) + 'x' + str(self.trueLeftSize[1]) + self.endingImageType
+            textPath = ROOT_DIR + '/Images_Points/' + self.endingImageName + '-' + str(self.trueLeftSize[0]) + 'x' + str(self.trueLeftSize[1]) + '-' + self.endingImageType[1:] + '.txt'
+            cv2.imwrite(path, img)
 
             open(textPath, 'w').close()
             writeFlag = False
@@ -549,12 +1170,12 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                         writeFlag = True
                     else:
                         endingFile.write('\n{:>8}{:>8}'.format(str(format(pointPair.x(), ".1f")), str(format(pointPair.y(), ".1f"))))
-            self.endingImageName += '-' + str(self.leftSize[0]) + 'x' + str(self.leftSize[1])
+            self.endingImageName += '-' + str(self.trueLeftSize[0]) + 'x' + str(self.trueLeftSize[1])
             self.endingImagePath = path
             self.endingTextCorePath = textPath
             self.endingImage.setPixmap(QtGui.QPixmap(self.endingImagePath))
-            self.notificationLine.setText(" Successfully resized right image from " + str(self.rightSize[0]) + "x" + str(self.rightSize[1]) + " to " + str(self.leftSize[0]) + "x" + str(self.leftSize[1]))
-            self.rightSize = self.leftSize
+            self.notificationLine.setText(" Successfully resized right image from " + str(self.rightSize[0]) + "x" + str(self.trueRightSize[1]) + " to " + str(self.trueLeftSize[0]) + "x" + str(self.leftSize[1]))
+            self.trueRightSize = self.trueLeftSize
             self.checkResize()
         else:
             self.notificationLine.setText(" Can't resize the right image - both images share the same dimensions!")
@@ -566,28 +1187,87 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         if (len(self.chosen_left_points) + len(self.confirmed_left_points)) == (len(self.chosen_right_points) + len(self.confirmed_right_points)) >= 3:
             self.alphaValue.setEnabled(1)
             self.alphaSlider.setEnabled(1)
-            self.autoCornerButton.setEnabled(1)
             self.blendButton.setEnabled(1)
             self.triangleBox.setEnabled(1)
             self.triangleBox.setChecked(self.triangleUpdatePref)
         else:
             self.alphaValue.setEnabled(0)
             self.alphaSlider.setEnabled(0)
-            self.autoCornerButton.setEnabled(0)
             self.blendButton.setEnabled(0)
             self.triangleBox.setEnabled(0)
             self.triangleBox.setChecked(0)
+        self.autoCornerButton.setEnabled(1)
         self.displayTriangles()
-        self.repaint()
         self.resizeLeftButton.setStyleSheet("")
         self.resizeRightButton.setStyleSheet("")
 
     # Function that handles GUI and file behavior when the mouse is clicked.
     def mousePressEvent(self, cursor_event):
+        if (self.deleteMode or self.moveMode) and cursor_event.button() == QtCore.Qt.LeftButton:
+            if 15 < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() + 15 and 38 < cursor_event.pos().y() < self.startingImage.geometry().bottomRight().y() + 38 and os.path.exists(self.leftTempTextPath):
+                if not self.leftZoomData:
+                    leftCoord = QtCore.QPoint(int(cursor_event.pos().x() * self.imageScalar[0]), int(cursor_event.pos().y() * self.imageScalar[1]))
+                else:
+                    # TODO: Determine correct math for grabbing points during zoom
+                    xPos = int(self.leftZoomData[2] + int(cursor_event.pos().x() * self.imageScalar[0] / self.zoomSlider.value()))
+                    yPos = int(self.leftZoomData[3] + int(cursor_event.pos().y() * self.imageScalar[1] / self.zoomSlider.value()))
+                    leftCoord = QtCore.QPoint(xPos, yPos)
+                self.movingPoint[3] = QtCore.QPoint(-1, -1)
+                for index, x in enumerate(self.confirmed_left_points):
+                    if abs(float(x.x()) - (leftCoord.x() - 15)) <= self.pointSlider.value() - 1 and abs(float(x.y()) - (leftCoord.y() - 38)) <= self.pointSlider.value() - 1:
+                        if self.movingPoint[3] == QtCore.QPoint(-1, -1) or (self.movingPoint[3] != QtCore.QPoint(-1, -1) and math.sqrt(math.pow(leftCoord.x() - 15 - x.x(), 2) + math.pow(leftCoord.y() - 38 - x.y(), 2) < math.sqrt(math.pow(leftCoord.x() - 15 - self.movingPoint[3].x(), 2) + math.pow(leftCoord.y() - 38 - self.movingPoint[3].y(), 2)))):
+                            if not self.leftZoomData:
+                                self.movingPoint = ['blue', 'LEFT', index, x, QtCore.QPoint(leftCoord.x() - 15, leftCoord.y() - 38)]
+                            else:
+                                self.movingPoint = ['blue', 'LEFT', index, x, QtCore.QPoint(int(self.leftZoomData[2] + int((cursor_event.pos().x() - 15) * self.imageScalar[0] / self.zoomSlider.value())), int(self.leftZoomData[3] + int((cursor_event.pos().y() - 38) * self.imageScalar[1] / self.zoomSlider.value())))]
+                for index, x in enumerate(self.chosen_left_points):
+                    if abs(float(x.x()) - (leftCoord.x() - 15)) <= self.pointSlider.value() - 1 and abs(float(x.y()) - (leftCoord.y() - 38)) <= self.pointSlider.value() - 1:
+                        if self.movingPoint[3] == QtCore.QPoint(-1, -1) or (self.movingPoint[3] != QtCore.QPoint(-1, -1) and math.sqrt(math.pow(leftCoord.x() - 15 - x.x(), 2) + math.pow(leftCoord.y() - 38 - x.y(), 2) < math.sqrt(math.pow(leftCoord.x() - 15 - self.movingPoint[3].x(), 2) + math.pow(leftCoord.y() - 38 - self.movingPoint[3].y(), 2)))):
+                            if not self.leftZoomData:
+                                self.movingPoint = ['red', 'LEFT', index, x, QtCore.QPoint(leftCoord.x() - 15, leftCoord.y() - 38)]
+                            else:
+                                self.movingPoint = ['red', 'LEFT', index, x, QtCore.QPoint(leftCoord.x() - 15, leftCoord.y() - 38)]
+            elif self.endingImage.geometry().topLeft().x() + 12 < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() + 12 and 38 < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y() + 38 and os.path.exists(self.rightTempTextPath):
+                if not self.rightZoomData:
+                    rightCoord = QtCore.QPoint(int(cursor_event.pos().x() * self.imageScalar[0]), int(cursor_event.pos().y() * self.imageScalar[1]))
+                else:
+                    # TODO: Determine correct math for grabbing points during zoom
+                    xPos = int(self.rightZoomData[2] + int(cursor_event.pos().x() * self.imageScalar[0] / self.zoomSlider.value()))
+                    yPos = int(self.rightZoomData[3] + int(cursor_event.pos().y() * self.imageScalar[1] / self.zoomSlider.value()))
+                    rightCoord = QtCore.QPoint(xPos, yPos)
+                self.movingPoint[3] = QtCore.QPoint(-1, -1)
+                for index, x in enumerate(self.confirmed_right_points):
+                    if abs(float(x.x()) - (rightCoord.x() - (self.endingImage.geometry().topLeft().x() + 12))) <= self.pointSlider.value() - 1 and abs(float(x.y()) - (rightCoord.y() - 38)) <= self.pointSlider.value() - 1:
+                        if self.movingPoint[3] == QtCore.QPoint(-1, -1) or (self.movingPoint[3] != QtCore.QPoint(-1, -1) and math.sqrt(math.pow(rightCoord.x() - (self.endingImage.geometry().topLeft().x() + 12) - x.x(), 2) + math.pow(rightCoord.y() - 38 - x.y(), 2) < math.sqrt(math.pow(rightCoord.x() - (self.endingImage.geometry().topLeft().x() + 12) - self.movingPoint[3].x(), 2) + math.pow(rightCoord.y() - 38 - self.movingPoint[3].y(), 2)))):
+                            if not self.rightZoomData:
+                                self.movingPoint = ['blue', 'RIGHT', index, x, QtCore.QPoint(rightCoord.x() - (self.endingImage.geometry().topLeft().x() + 12), rightCoord.y() - 38)]
+                            else:
+                                self.movingPoint = ['blue', 'RIGHT', index, x, QtCore.QPoint(int(self.rightZoomData[2] + int((cursor_event.pos().x() - (self.endingImage.geometry().topLeft().x() + 12)) * self.imageScalar[0] / self.zoomSlider.value())), int(self.rightZoomData[3] + int((cursor_event.pos().y() - 38) * self.imageScalar[1] / self.zoomSlider.value())))]
+                for index, x in enumerate(self.chosen_right_points):
+                    if abs(float(x.x()) - (rightCoord.x() - (self.endingImage.geometry().topLeft().x() + 12))) <= self.pointSlider.value() - 1 and abs(float(x.y()) - (rightCoord.y() - 38)) <= self.pointSlider.value() - 1:
+                        if self.movingPoint[3] == QtCore.QPoint(-1, -1) or (self.movingPoint[3] != QtCore.QPoint(-1, -1) and math.sqrt(math.pow(rightCoord.x() - (self.endingImage.geometry().topLeft().x() + 12) - x.x(), 2) + math.pow(rightCoord.y() - 38 - x.y(), 2) < math.sqrt(math.pow(rightCoord.x() - (self.endingImage.geometry().topLeft().x() + 12) - self.movingPoint[3].x(), 2) + math.pow(rightCoord.y() - 38 - self.movingPoint[3].y(), 2)))):
+                            if not self.rightZoomData:
+                                self.movingPoint = ['red', 'RIGHT', index, x, QtCore.QPoint(rightCoord.x() - (self.endingImage.geometry().topLeft().x() + 12), rightCoord.y() - 38)]
+                            else:
+                                self.movingPoint = ['red', 'RIGHT', index, x, QtCore.QPoint(rightCoord.x() - (self.endingImage.geometry().topLeft().x() + 12), rightCoord.y() - 38)]
+            if self.movingPoint[3] != QtCore.QPoint(-1, -1):
+                if self.movingPoint[1] == 'LEFT': (self.confirmed_left_points if self.movingPoint[0] == 'blue' else self.chosen_left_points).remove(self.movingPoint[3])
+                elif self.movingPoint[1] == 'RIGHT': (self.confirmed_right_points if self.movingPoint[0] == 'blue' else self.chosen_right_points).remove(self.movingPoint[3])
+                if self.deleteMode:
+                    if self.movingPoint[1] == 'LEFT': (self.confirmed_right_points if self.movingPoint[0] == 'blue' else self.chosen_right_points).pop(self.movingPoint[2])
+                    elif self.movingPoint[1] == 'RIGHT': (self.confirmed_left_points if self.movingPoint[0] == 'blue' else self.chosen_left_points).pop(self.movingPoint[2])
+                    self.deletePoint(self.startingTextCorePath)
+                    self.deletePoint(self.leftTempTextPath)
+                    self.deletePoint(self.endingTextCorePath)
+                    self.deletePoint(self.rightTempTextPath)
+                elif self.moveMode:
+                    self.setMouseTracking(True)
+                    self.hoverFlag = True
+                self.displayTriangles()
         # LMB (Place Point)
-        if cursor_event.button() == QtCore.Qt.LeftButton:
-            if self.leftSize == self.rightSize:
-                self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
+        elif cursor_event.button() == QtCore.Qt.LeftButton:
+            if self.trueLeftSize == self.trueRightSize:
+                self.imageScalar = (self.leftSize[0] / self.startingImage.width(), self.leftSize[1] / self.startingImage.height())
 
                 if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
                     # If there are a set of points to confirm
@@ -597,27 +1277,37 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                         self.confirmed_right_points.append(self.added_right_points.pop())
                         with open(self.startingTextCorePath, "a") as startingFile:
                             if not os.stat(self.startingTextCorePath).st_size:  # left file is empty
-                                startingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].y(), ".1f"))))
+                                startingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_left_points[-1].x() * self.trueLeftSize[0] / self.leftSize[0], ".1f")), str(format(self.confirmed_left_points[-1].y() * self.trueLeftSize[1] / self.leftSize[1], ".1f"))))
                             else:
-                                startingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].x(), ".1f")), str(format(self.confirmed_left_points[len(self.confirmed_left_points)-1].y(), ".1f"))))
+                                startingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_left_points[-1].x() * self.trueLeftSize[0] / self.leftSize[0], ".1f")), str(format(self.confirmed_left_points[-1].y() * self.trueLeftSize[1] / self.leftSize[1], ".1f"))))
+                        with open(self.leftTempTextPath, "a") as startingTempFile:
+                            if not os.stat(self.leftTempTextPath).st_size:  # left file is empty
+                                startingTempFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_left_points[-1].x(), ".1f")), str(format(self.confirmed_left_points[-1].y(), ".1f"))))
+                            else:
+                                startingTempFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_left_points[-1].x(), ".1f")), str(format(self.confirmed_left_points[-1].y(), ".1f"))))
                         with open(self.endingTextCorePath, "a") as endingFile:
                             if not os.stat(self.endingTextCorePath).st_size:  # right file is empty
-                                endingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].y(), ".1f"))))
+                                endingFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_right_points[-1].x() * self.trueRightSize[0] / self.rightSize[0], ".1f")), str(format(self.confirmed_right_points[-1].y() * self.trueRightSize[1] / self.rightSize[1], ".1f"))))
                             else:
-                                endingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].x(), ".1f")), str(format(self.confirmed_right_points[len(self.confirmed_right_points)-1].y(), ".1f"))))
+                                endingFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[-1].x() * self.trueRightSize[0] / self.rightSize[0], ".1f")), str(format(self.confirmed_right_points[-1].y() * self.trueRightSize[1] / self.rightSize[1], ".1f"))))
+                        with open(self.rightTempTextPath, "a") as endingTempFile:
+                            if not os.stat(self.rightTempTextPath).st_size:  # right file is empty
+                                endingTempFile.write('{:>8}{:>8}'.format(str(format(self.confirmed_right_points[-1].x(), ".1f")), str(format(self.confirmed_right_points[-1].y(), ".1f"))))
+                            else:
+                                endingTempFile.write('\n{:>8}{:>8}'.format(str(format(self.confirmed_right_points[-1].x(), ".1f")), str(format(self.confirmed_right_points[-1].y(), ".1f"))))
                         self.refreshPaint()
                         self.displayTriangles()
                         self.autoCornerButton.setEnabled(1)
                         self.resetPointsButton.setEnabled(1)
                         self.notificationLine.setText(" Successfully confirmed set of added points.")
                     # LMB was clicked inside left image
-                    if self.startingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.startingImage.geometry().bottomRight().y() and len(self.added_left_points) == 0:
+                    if 15 < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() + 15 and 38 < cursor_event.pos().y() < self.startingImage.geometry().bottomRight().y() + 38 and len(self.added_left_points) == 0:
                         self.placed_points_history.clear()
                         if not self.leftZoomData:
-                            leftCoord = QtCore.QPoint(int((cursor_event.pos().x() - self.startingImage.geometry().topLeft().x()) * self.imageScalar[0]), int((cursor_event.pos().y() - self.startingImage.geometry().topLeft().y()) * self.imageScalar[1]))
+                            leftCoord = QtCore.QPoint(int((cursor_event.pos().x() - 15) * self.imageScalar[0]), int((cursor_event.pos().y() - 38) * self.imageScalar[1]))
                         else:
-                            xPos = self.leftZoomData[2] + int((cursor_event.pos().x() - self.startingImage.geometry().topLeft().x()) * self.imageScalar[0] / 2)
-                            yPos = self.leftZoomData[3] + int((cursor_event.pos().y() - self.startingImage.geometry().topLeft().y()) * self.imageScalar[1] / 2)
+                            xPos = int(self.leftZoomData[2] + int((cursor_event.pos().x() - 15) * self.imageScalar[0] / self.zoomSlider.value()))
+                            yPos = int(self.leftZoomData[3] + int((cursor_event.pos().y() - 38) * self.imageScalar[1] / self.zoomSlider.value()))
                             leftCoord = QtCore.QPoint(xPos, yPos)
                         self.added_left_points.append(leftCoord)
                         self.refreshPaint()
@@ -626,13 +1316,13 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                         self.autoCornerButton.setEnabled(0)
                         self.notificationLine.setText(" Successfully added left temporary point.")
                     # LMB was clicked inside right image
-                    elif self.endingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() and self.endingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y() and len(self.added_right_points) == 0:
+                    elif self.endingImage.geometry().topLeft().x() + 12 < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() + 12 and 38 < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y() + 38 and len(self.added_right_points) == 0:
                         self.placed_points_history.clear()
                         if not self.rightZoomData:
-                            rightCoord = QtCore.QPoint(int((cursor_event.pos().x() - self.endingImage.geometry().topLeft().x()) * self.imageScalar[0]), int((cursor_event.pos().y() - self.startingImage.geometry().topLeft().y()) * self.imageScalar[1]))
+                            rightCoord = QtCore.QPoint(int((cursor_event.pos().x() - (self.endingImage.geometry().topLeft().x() + 12)) * self.imageScalar[0]), int((cursor_event.pos().y() - 38) * self.imageScalar[1]))
                         else:
-                            xPos = self.rightZoomData[2] + int((cursor_event.pos().x() - self.endingImage.geometry().topLeft().x()) * self.imageScalar[0] / 2)
-                            yPos = self.rightZoomData[3] + int((cursor_event.pos().y() - self.endingImage.geometry().topLeft().y()) * self.imageScalar[1] / 2)
+                            xPos = int(self.rightZoomData[2] + int((cursor_event.pos().x() - (self.endingImage.geometry().topLeft().x() + 12)) * self.imageScalar[0] / self.zoomSlider.value()))
+                            yPos = int(self.rightZoomData[3] + int((cursor_event.pos().y() - 38) * self.imageScalar[1] / self.zoomSlider.value()))
                             rightCoord = QtCore.QPoint(xPos, yPos)
                         self.added_right_points.append(rightCoord)
                         self.refreshPaint()
@@ -651,35 +1341,129 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                             self.displayTriangles()
             else:
                 if (self.startingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.startingImage.geometry().bottomRight().y() and len(self.added_left_points) == 0) or (self.endingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() and self.endingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y() and len(self.added_right_points) == 0):
-                    self.notificationLine.setText(" Images must be the same size before points can be drawn!")
+                    if self.startingImage.hasScaledContents() and self.endingImage.hasScaledContents():
+                        self.notificationLine.setText(" Images must be the same size before points can be drawn!")
+                    else:
+                        self.notificationLine.setText(" Both images must be loaded before points can be drawn!")
+        # MMB (Zoom Panning)
+        elif cursor_event.button() == QtCore.Qt.MidButton:
+            if self.leftZoomData or self.rightZoomData:
+                if self.leftZoomData and 15 < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() + 15 and 38 < cursor_event.pos().y() < self.startingImage.geometry().bottomRight().y() + 38:
+                    self.zoomPanRef = ['LEFT', cursor_event.pos()]
+                elif self.rightZoomData and self.endingImage.geometry().topLeft().x() + 12 < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() + 12 and 38 < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y() + 38:
+                    self.zoomPanRef = ['RIGHT', cursor_event.pos()]
+                else:
+                    self.zoomPanRef.clear()
+                    return
+                QApplication.setOverrideCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
+                self.setMouseTracking(True)
         # RMB (Toggle Zoom)
         elif cursor_event.button() == QtCore.Qt.RightButton:
             # RMB was clicked inside left image
-            if self.startingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() and self.startingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.startingImage.geometry().bottomRight().y():
+            if 15 < cursor_event.pos().x() < self.startingImage.geometry().topRight().x() + 15 and 38 < cursor_event.pos().y() < self.startingImage.geometry().bottomRight().y() + 38:
                 if not self.leftZoomData:
-                    self.leftZoomData = [int((cursor_event.pos().x() - self.startingImage.geometry().topLeft().x()) * self.imageScalar[0]), int((cursor_event.pos().y() - self.startingImage.geometry().topLeft().y()) * self.imageScalar[1]), 0, 0]
+                    self.leftZoomData = [int((cursor_event.pos().x() - 15) * self.imageScalar[0]), int((cursor_event.pos().y() - 38) * self.imageScalar[1]), 0, 0]
                     self.notificationLine.setText(" Zoomed in on left image.")
                 else:
                     self.leftZoomData = None
                     self.notificationLine.setText(" Zoomed out of left image.")
                 self.refreshPaint()
             # RMB was clicked inside right image
-            elif self.endingImage.geometry().topLeft().x() < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() and self.endingImage.geometry().topLeft().y() < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y():
+            elif self.endingImage.geometry().topLeft().x() + 12 < cursor_event.pos().x() < self.endingImage.geometry().topRight().x() + 12 and 38 < cursor_event.pos().y() < self.endingImage.geometry().bottomRight().y() + 38:
                 if not self.rightZoomData:
-                    self.rightZoomData = [int((cursor_event.pos().x() - self.endingImage.geometry().topLeft().x()) * self.imageScalar[0]), int((cursor_event.pos().y() - self.endingImage.geometry().topLeft().y()) * self.imageScalar[1]), 0, 0]
+                    self.rightZoomData = [int((cursor_event.pos().x() - (self.endingImage.geometry().topLeft().x() + 12)) * self.imageScalar[0]), int((cursor_event.pos().y() - 38) * self.imageScalar[1]), 0, 0]
                     self.notificationLine.setText(" Zoomed in on right image.")
                 else:
                     self.rightZoomData = None
                     self.notificationLine.setText(" Zoomed out of right image.")
                 self.refreshPaint()
 
+    # Function that handles zoom panning with MMB for the currently chosen image
+    def mouseMoveEvent(self, move_event):
+        if self.zoomPanRef:
+            if self.zoomPanRef[0] == 'LEFT':
+                self.leftZoomData[0] -= (move_event.pos().x() - self.zoomPanRef[1].x()) * (1 / self.zoomSlider.value())
+                self.leftZoomData[1] -= (move_event.pos().y() - self.zoomPanRef[1].y()) * (1 / self.zoomSlider.value())
+            elif self.zoomPanRef[0] == 'RIGHT':
+                self.rightZoomData[0] -= (move_event.pos().x() - self.zoomPanRef[1].x()) * (1 / self.zoomSlider.value())
+                self.rightZoomData[1] -= (move_event.pos().y() - self.zoomPanRef[1].y()) * (1 / self.zoomSlider.value())
+            self.zoomPanRef[1] = move_event.pos()
+            self.refreshPaint()
+        elif self.moveMode and self.movingPoint[3] != QtCore.QPoint(-1, -1):
+            if (15 < move_event.pos().x() < self.startingImage.geometry().topRight().x() + 15 and 38 < move_event.pos().y() < self.startingImage.geometry().bottomRight().y() + 38) or (self.endingImage.geometry().topLeft().x() + 12 < move_event.pos().x() < self.endingImage.geometry().topRight().x() + 12 and 38 < move_event.pos().y() < self.endingImage.geometry().bottomRight().y() + 38):
+                if self.movingPoint[1] == 'LEFT':
+                    if not self.leftZoomData:
+                        self.movingPoint[4] = QtCore.QPoint(max(0, min(int((move_event.pos().x() - 15) * self.imageScalar[0]), self.startingImage.geometry().topRight().x())),
+                                                            max(0, min(int((move_event.pos().y() - 38) * self.imageScalar[1]), self.startingImage.geometry().bottomRight().y() + 38)))
+                    else:
+                        self.movingPoint[4] = QtCore.QPoint(int(self.leftZoomData[2] + int((move_event.pos().x() - 15) * self.imageScalar[0] / self.zoomSlider.value())),
+                                                            int(self.leftZoomData[3] + int((move_event.pos().y() - 38) * self.imageScalar[1] / self.zoomSlider.value())))
+                elif self.movingPoint[1] == 'RIGHT':
+                    if not self.rightZoomData:
+                        self.movingPoint[4] = QtCore.QPoint(max(0, min(int((move_event.pos().x() - (self.endingImage.geometry().topLeft().x() + 12)) * self.imageScalar[0]), self.endingImage.geometry().topRight().x())),
+                                                            max(0, min(int((move_event.pos().y() - 38) * self.imageScalar[1]), self.endingImage.geometry().bottomRight().y() + 38)))
+                    else:
+                        self.movingPoint[4] = QtCore.QPoint(int(self.rightZoomData[2] + int((move_event.pos().x() - 15) * self.imageScalar[0] / self.zoomSlider.value())),
+                                                            int(self.rightZoomData[3] + int((move_event.pos().y() - 38) * self.imageScalar[1] / self.zoomSlider.value())))
+                self.refreshPaint()
+
+    # Function that ends the zoom panning process when MMB is released
+    def mouseReleaseEvent(self, release_event):
+        if release_event.button() == QtCore.Qt.MidButton and self.zoomPanRef:
+            QApplication.restoreOverrideCursor()
+            self.setMouseTracking(False)
+            self.zoomPanRef.clear()
+        elif release_event.button() == QtCore.Qt.LeftButton and self.hoverFlag:
+            self.setMouseTracking(False)
+            self.hoverFlag = False
+            if self.movingPoint[1] == 'LEFT':
+                if self.movingPoint[0] == 'blue':
+                    self.confirmed_left_points.insert(self.movingPoint[2], self.movingPoint[4])
+                    origData = open(self.startingTextCorePath, 'r').readlines()
+                    if origData:
+                        origData[len(self.chosen_left_points) + self.movingPoint[2]] = ('\n' if len(self.chosen_left_points) + self.movingPoint[2] == 0 else '') + '{:>8}{:>8}'.format(str(format(self.confirmed_left_points[self.movingPoint[2]].x() * self.trueLeftSize[0] / self.leftSize[0], ".1f")), str(format(self.confirmed_left_points[self.movingPoint[2]].y() * self.trueLeftSize[1] / self.leftSize[1], ".1f"))) + ('\n' if len(self.chosen_left_points) + self.movingPoint[2] != len(origData) - 1 else '')
+                        open(self.startingTextCorePath, 'w').writelines(origData)
+                    tempData = open(self.leftTempTextPath, 'r').readlines()
+                    if tempData:
+                        tempData[len(self.chosen_left_points) + self.movingPoint[2]] = ('\n' if len(self.chosen_left_points) + self.movingPoint[2] == 0 else '') + '{:>8}{:>8}'.format(str(format(self.confirmed_left_points[self.movingPoint[2]].x(), ".1f")), str(format(self.confirmed_left_points[self.movingPoint[2]].y(), ".1f"))) + ('\n' if len(self.chosen_left_points) + self.movingPoint[2] != len(origData) - 1 else '')
+                        open(self.leftTempTextPath, 'w').writelines(tempData)
+                elif self.movingPoint[0] == 'red':
+                    self.chosen_left_points.insert(self.movingPoint[2], self.movingPoint[4])
+                    origData = open(self.startingTextCorePath, 'r').readlines()
+                    if origData:
+                        origData[self.movingPoint[2]] = ('\n' if self.movingPoint[2] == 0 else '') + '{:>8}{:>8}'.format(str(format(self.chosen_left_points[self.movingPoint[2]].x() * self.trueLeftSize[0] / self.leftSize[0], ".1f")), str(format(self.chosen_left_points[self.movingPoint[2]].y() * self.trueLeftSize[1] / self.leftSize[1], ".1f"))) + ('\n' if self.movingPoint[2] != len(origData) - 1 else '')
+                        open(self.startingTextCorePath, 'w').writelines(origData)
+                    tempData = open(self.leftTempTextPath, 'r').readlines()
+                    if tempData:
+                        tempData[self.movingPoint[2]] = ('\n' if self.movingPoint[2] == 0 else '') + '{:>8}{:>8}'.format(str(format(self.chosen_left_points[self.movingPoint[2]].x(), ".1f")), str(format(self.chosen_left_points[self.movingPoint[2]].y(), ".1f"))) + ('\n' if self.movingPoint[2] != len(origData) - 1 else '')
+                        open(self.leftTempTextPath, 'w').writelines(tempData)
+            elif self.movingPoint[1] == 'RIGHT':
+                if self.movingPoint[0] == 'blue':
+                    self.confirmed_right_points.insert(self.movingPoint[2], self.movingPoint[4])
+                    origData = open(self.endingTextCorePath, 'r').readlines()
+                    if origData:
+                        origData[len(self.chosen_right_points) + self.movingPoint[2]] = ('\n' if len(self.chosen_right_points) + self.movingPoint[2] == 0 else '') + '{:>8}{:>8}'.format(str(format(self.confirmed_right_points[self.movingPoint[2]].x() * self.trueRightSize[0] / self.rightSize[0], ".1f")), str(format(self.confirmed_right_points[self.movingPoint[2]].y() * self.trueRightSize[1] / self.rightSize[1], ".1f"))) + ('\n' if len(self.chosen_right_points) + self.movingPoint[2] != len(origData) - 1 else '')
+                        open(self.endingTextCorePath, 'w').writelines(origData)
+                    tempData = open(self.rightTempTextPath, 'r').readlines()
+                    if tempData:
+                        tempData[len(self.chosen_right_points) + self.movingPoint[2]] = ('\n' if len(self.chosen_right_points) + self.movingPoint[2] == 0 else '') + '{:>8}{:>8}'.format(str(format(self.confirmed_right_points[self.movingPoint[2]].x(), ".1f")), str(format(self.confirmed_right_points[self.movingPoint[2]].y(), ".1f"))) + ('\n' if len(self.chosen_right_points) + self.movingPoint[2] != len(origData) - 1 else '')
+                        open(self.rightTempTextPath, 'w').writelines(tempData)
+                elif self.movingPoint[0] == 'red':
+                    self.chosen_right_points.insert(self.movingPoint[2], self.movingPoint[4])
+                    origData = open(self.endingTextCorePath, 'r').readlines()
+                    if origData:
+                        origData[self.movingPoint[2]] = ('\n' if self.movingPoint[2] == 0 else '') + '{:>8}{:>8}'.format(str(format(self.chosen_right_points[self.movingPoint[2]].x() * self.trueRightSize[0] / self.rightSize[0], ".1f")), str(format(self.chosen_right_points[self.movingPoint[2]].y() * self.trueRightSize[1] / self.rightSize[1], ".1f"))) + ('\n' if self.movingPoint[2] != len(origData) - 1 else '')
+                        open(self.endingTextCorePath, 'w').writelines(origData)
+                    tempData = open(self.rightTempTextPath, 'r').readlines()
+                    if tempData:
+                        tempData[self.movingPoint[2]] = ('\n' if self.movingPoint[2] == 0 else '') + '{:>8}{:>8}'.format(str(format(self.chosen_right_points[self.movingPoint[2]].x(), ".1f")), str(format(self.chosen_right_points[self.movingPoint[2]].y(), ".1f"))) + ('\n' if self.movingPoint[2] != len(origData) - 1 else '')
+                        open(self.rightTempTextPath, 'w').writelines(tempData)
+            self.displayTriangles()
+
     # Very simple function for updating user preference for blending transparency in images
     # (This is disabled by default, as transparency is often unused and reduces performance.)
     def transparencyUpdate(self):
-        if self.transparencyBox.isChecked():
-            self.notificationLine.setText(" Successfully enabled transparency layer.")
-        else:
-            self.notificationLine.setText(" Successfully disabled transparency layer.")
+        self.notificationLine.setText(" Successfully " + ('enabled' if self.transparencyBox.isChecked() else 'disabled') + " transparency layer.")
 
     # Another simple function for updating user preference regarding 'full blending'
     # Full blending is defined as morphing every 0.05 alpha increment of the two images.
@@ -687,18 +1471,15 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     # (Naturally, this is disabled by default, as full blending takes much longer to run)
     def blendBoxUpdate(self):
         self.blendText.setEnabled(int(self.blendBox.isChecked()))
-        if self.blendBox.isChecked():
-            self.notificationLine.setText(" Successfully enabled full blending.")
-        else:
-            self.notificationLine.setText(" Successfully disabled full blending.")
+        self.notificationLine.setText(" Successfully " + ('enabled' if self.blendBox.isChecked() else 'disabled') + " full blending.")
 
     # Function that dynamically updates the list of triangles for the image pair provided, when manually invoked.
     # When a process wants to see triangles update properly, THIS is what needs to be called (not self.triangleUpdate).
     def displayTriangles(self):
         if self.triangleBox.isEnabled() and (self.triangleBox.isChecked() or self.triangleUpdatePref):
-            if os.path.exists(self.startingTextCorePath) and os.path.exists(self.endingTextCorePath):
+            if os.path.exists(self.leftTempTextPath) and os.path.exists(self.rightTempTextPath):
                 self.updateTriangleWidget(1)
-                leftTriList, rightTriList = loadTriangles(self.startingTextCorePath, self.endingTextCorePath)
+                leftTriList, rightTriList = loadTriangles(self.leftTempTextPath, self.rightTempTextPath)
                 self.leftPolyList.clear()
                 self.rightPolyList.clear()
 
@@ -729,7 +1510,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.alphaValue.setText(str(value))
         if self.fullBlendComplete:
             temp = self.blendList[round(value_num / self.fullBlendValue)]
-
             if len(temp.shape) == 2:
                 self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)))
             elif temp.shape[2] == 3:
@@ -741,15 +1521,24 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
 
     # Red/Green/Blue slider functions for the triangle widget in order to select custom colors
     def updateRed(self):
-        self.triangleRedValue.setText(str(self.triangleRedSlider.value()))
+        if self.comboBox.currentText() == 'Decimal': value = str(self.triangleRedSlider.value()).zfill(3)
+        elif self.comboBox.currentText() == 'Binary': value = str(bin(self.triangleRedSlider.value())[2:].zfill(8))
+        elif self.comboBox.currentText() == 'Hexadecimal': value = str('0x' + hex(self.triangleRedSlider.value())[2:].zfill(2).upper())
+        self.triangleRedValue.setText(value)
         self.refreshPaint()
 
     def updateGreen(self):
-        self.triangleGreenValue.setText(str(self.triangleGreenSlider.value()))
+        if self.comboBox.currentText() == 'Decimal': value = str(self.triangleGreenSlider.value()).zfill(3)
+        elif self.comboBox.currentText() == 'Binary': value = str(bin(self.triangleGreenSlider.value())[2:].zfill(8))
+        elif self.comboBox.currentText() == 'Hexadecimal': value = str('0x' + hex(self.triangleGreenSlider.value())[2:].zfill(2).upper())
+        self.triangleGreenValue.setText(value)
         self.refreshPaint()
 
     def updateBlue(self):
-        self.triangleBlueValue.setText(str(self.triangleBlueSlider.value()))
+        if self.comboBox.currentText() == 'Decimal': value = str(self.triangleBlueSlider.value()).zfill(3)
+        elif self.comboBox.currentText() == 'Binary': value = str(bin(self.triangleBlueSlider.value())[2:].zfill(8))
+        elif self.comboBox.currentText() == 'Hexadecimal': value = str('0x' + hex(self.triangleBlueSlider.value())[2:].zfill(2).upper())
+        self.triangleBlueValue.setText(value)
         self.refreshPaint()
 
     # Function that handles behavior when the user wishes to blend the two calibrated images.
@@ -758,161 +1547,93 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     #     > 24-Bit Color .JPG / .PNG                   (QtGui.QImage.Format_RGB888)
     #     > 24-Bit Color, 8-Bit Transparency .PNG      (QtGui.QImage.Format_RGBA8888)
     def blendImages(self):
-        self.blendButton.setEnabled(0)
-        self.blendBox.setEnabled(0)
+        global grayScale, colorScaleR, colorScaleG, colorScaleB, colorScaleA, alphaValue, start_time
+        self.updateMorphingWidget(False)
         triangleTuple = loadTriangles(self.startingTextCorePath, self.endingTextCorePath)
         leftImageRaw = imageio.imread(self.startingImagePath)
         rightImageRaw = imageio.imread(self.endingImagePath)
         leftImageARR = np.asarray(leftImageRaw)
         rightImageARR = np.asarray(rightImageRaw)
+        self.progressBar.setValue(0)
+        self.blendedImage = None
+        grayScale = None
+        colorScaleR = None
+        colorScaleG = None
+        colorScaleB = None
+        colorScaleA = None
         errorFlag = False
 
         if self.blendBox.isChecked() and self.blendText.text() == '.':
-            self.notificationLine.setText(" Failed to morph. Please disable full blending or specify a valid value (0.001 to 1.0)")
+            self.notificationLine.setText(" Failed to morph. Please disable full blending or specify a valid value (0.001 to 0.25)")
             errorFlag = True
-        elif len(leftImageRaw.shape) < 3 and len(rightImageRaw.shape) < 3:  # if grayscale
+        elif len(leftImageRaw.shape) != len(rightImageRaw.shape):
+            self.notificationLine.setText(" Failed to morph due to difference in image formats. Check image file types..")
+            errorFlag = True
+        elif len(leftImageRaw.shape) == len(rightImageRaw.shape) < 3:  # if grayscale
             self.notificationLine.setText(" Calculating grayscale morph...")
-            self.repaint()
             grayScale = Morpher(leftImageARR, triangleTuple[0], rightImageARR, triangleTuple[1])
+            alphaValue = float(self.alphaValue.text())
             self.blendList.clear()
             start_time = time.time()
             if self.blendBox.isChecked():
+                self.progressBar.setVisible(True)
                 self.verifyValue("blend")
-                x = 0
-                while x <= self.alphaSlider.maximum():
-                    self.notificationLine.setText(" Calculating RGB (.jpg) morph... {Frame " + str(x + 1) + "/" + str(self.alphaSlider.maximum() + 1) + "}")
-                    self.repaint()
-                    if x == self.alphaSlider.maximum():
-                        tempImage = grayScale.getImageAtAlpha(1.0)
-                    else:
-                        tempImage = grayScale.getImageAtAlpha(x * self.fullBlendValue)
-                    self.blendList.append(tempImage)
-                    x += 1
-                self.fullBlendComplete = True
-                self.gifText.setEnabled(1)
-                temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
-                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_Grayscale8)))
+                for x in range(0, math.ceil(1 / self.fullBlendValue) + 1, 1):
+                    x *= self.fullBlendValue
+                    self.threadQueue.put(x)
+                self.framer.start()
             else:
                 self.fullBlendComplete = False
                 self.gifText.setEnabled(0)
-                self.blendedImage = grayScale.getImageAtAlpha(float(self.alphaValue.text()))
-                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], QtGui.QImage.Format_Grayscale8)))
-            self.notificationLine.setText(" Morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
-        elif not self.transparencyBox.isChecked() or (leftImageRaw.shape[2] == 3 and rightImageRaw.shape[2] == 3):  # if color, no alpha (.JPG)
+                self.imager.start()
+                self.imager.image_complete.connect(self.imageFinished)
+        elif not self.transparencyBox.isChecked() or (leftImageRaw.shape[2] == rightImageRaw.shape[2] == 3):  # if color, no alpha (.JPG)
             self.notificationLine.setText(" Calculating RGB (.jpg) morph...")
-            self.repaint()
+            self.blendList.clear()
             colorScaleR = Morpher(leftImageARR[:, :, 0], triangleTuple[0], rightImageARR[:, :, 0], triangleTuple[1])
             colorScaleG = Morpher(leftImageARR[:, :, 1], triangleTuple[0], rightImageARR[:, :, 1], triangleTuple[1])
             colorScaleB = Morpher(leftImageARR[:, :, 2], triangleTuple[0], rightImageARR[:, :, 2], triangleTuple[1])
-            self.blendList.clear()
+            alphaValue = float(self.alphaValue.text())
             start_time = time.time()
             if self.blendBox.isChecked():
-
-                counter = 0
-                while counter <= self.alphaSlider.maximum():
-                    self.notificationLine.setText(" Calculating RGB (.jpg) morph... {Frame " + str(counter + 1) + "/" + str(self.alphaSlider.maximum() + 1) + "}")
-                    self.repaint()
-                    if counter == self.alphaSlider.maximum():
-                        alphaVal = 1.0
-                    else:
-                        alphaVal = counter * self.fullBlendValue
-                    pool = multiprocessing.Pool(4)
-                    results = [pool.apply_async(colorScaleR.getImageAtAlpha, (alphaVal,)),
-                               pool.apply_async(colorScaleG.getImageAtAlpha, (alphaVal,)),
-                               pool.apply_async(colorScaleB.getImageAtAlpha, (alphaVal,))]
-                    blendR = results[0].get()
-                    blendG = results[1].get()
-                    blendB = results[2].get()
-                    pool.close()
-                    pool.terminate()
-                    pool.join()
-                    self.blendList.append(np.dstack((blendR, blendG, blendB)))
-                    counter += 1
-                self.fullBlendComplete = True
-                self.gifText.setEnabled(1)
-                temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
-                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], temp.shape[1] * 3, QtGui.QImage.Format_RGB888)))
-                self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+                self.progressBar.setVisible(True)
+                for x in range(0, math.ceil(1 / self.fullBlendValue) + 1, 1):
+                    x *= self.fullBlendValue
+                    self.threadQueue.put(x)
+                self.framer.start()
             else:
                 self.fullBlendComplete = False
                 self.gifText.setEnabled(0)
-                pool = multiprocessing.Pool(4)
-                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()),)),
-                           pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()),)),
-                           pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()),))]
-                blendR = results[0].get()
-                blendG = results[1].get()
-                blendB = results[2].get()
-                pool.close()
-                pool.terminate()
-                pool.join()
-                self.blendedImage = np.dstack((blendR, blendG, blendB))
-                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], self.blendedImage.shape[1] * 3, QtGui.QImage.Format_RGB888)))
-                self.notificationLine.setText(" RGB morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
-        elif self.transparencyBox.isChecked() and leftImageRaw.shape[2] == 4 and rightImageRaw.shape[2] == 4:   # if color, alpha (.PNG)
+                self.imager.start()
+                self.imager.image_complete.connect(self.imageFinished)
+        elif self.transparencyBox.isChecked() and leftImageRaw.shape[2] == rightImageRaw.shape[2] == 4:   # if color, alpha (.PNG)
             self.notificationLine.setText(" Calculating RGBA (.png) morph...")
-            self.repaint()
+            QtCore.QCoreApplication.processEvents()
             colorScaleR = Morpher(leftImageARR[:, :, 0], triangleTuple[0], rightImageARR[:, :, 0], triangleTuple[1])
             colorScaleG = Morpher(leftImageARR[:, :, 1], triangleTuple[0], rightImageARR[:, :, 1], triangleTuple[1])
             colorScaleB = Morpher(leftImageARR[:, :, 2], triangleTuple[0], rightImageARR[:, :, 2], triangleTuple[1])
             colorScaleA = Morpher(leftImageARR[:, :, 3], triangleTuple[0], rightImageARR[:, :, 3], triangleTuple[1])
+            alphaValue = float(self.alphaValue.text())
             self.blendList.clear()
             start_time = time.time()
             if self.blendBox.isChecked():
-                counter = 0
-                while counter <= self.alphaSlider.maximum():
-                    self.notificationLine.setText(" Calculating RGBA (.jpg) morph... {Frame " + str(counter + 1) + "/" + str(self.alphaSlider.maximum() + 1) + "}")
-                    self.repaint()
-                    if counter == self.alphaSlider.maximum():
-                        alphaVal = 1.0
-                    else:
-                        alphaVal = counter * self.fullBlendValue
-                    pool = multiprocessing.Pool(4)
-                    results = [pool.apply_async(colorScaleR.getImageAtAlpha, (alphaVal,)),
-                               pool.apply_async(colorScaleG.getImageAtAlpha, (alphaVal,)),
-                               pool.apply_async(colorScaleB.getImageAtAlpha, (alphaVal,)),
-                               pool.apply_async(colorScaleA.getImageAtAlpha, (alphaVal,))]
-                    blendR = results[0].get()
-                    blendG = results[1].get()
-                    blendB = results[2].get()
-                    blendA = results[3].get()
-                    pool.close()
-                    pool.terminate()
-                    pool.join()
-
-                    self.blendList.append(np.dstack((blendR, blendG, blendB, blendA)))
-                    counter += 1
-                self.fullBlendComplete = True
-                self.gifText.setEnabled(1)
-                temp = self.blendList[int(float(self.alphaValue.text()) / self.fullBlendValue)]
-                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGBA8888)))
-                self.notificationLine.setText(" RGBA morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+                self.progressBar.setVisible(True)
+                for x in range(0, math.ceil(1 / self.fullBlendValue) + 1, 1):
+                    x *= self.fullBlendValue
+                    self.threadQueue.put(x)
+                self.framer.start()
             else:
                 self.fullBlendComplete = False
                 self.gifText.setEnabled(0)
-                pool = multiprocessing.Pool(4)
-                results = [pool.apply_async(colorScaleR.getImageAtAlpha, (float(self.alphaValue.text()),)),
-                           pool.apply_async(colorScaleG.getImageAtAlpha, (float(self.alphaValue.text()),)),
-                           pool.apply_async(colorScaleB.getImageAtAlpha, (float(self.alphaValue.text()),)),
-                           pool.apply_async(colorScaleA.getImageAtAlpha, (float(self.alphaValue.text()),))]
-                blendR = results[0].get()
-                blendG = results[1].get()
-                blendB = results[2].get()
-                blendA = results[3].get()
-                pool.close()
-                pool.terminate()
-                pool.join()
-                self.blendedImage = np.dstack((blendR, blendG, blendB, blendA))
-                self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], QtGui.QImage.Format_RGBA8888)))
-                self.notificationLine.setText(" RGBA morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
+                self.imager.start()
+                self.imager.image_complete.connect(self.imageFinished)
         else:
-            self.notificationLine.setText(" Generic Catching Error: Check image file types..")
             errorFlag = True
         if not errorFlag:
             self.blendingImage.setScaledContents(1)
-            self.blendButton.setEnabled(1)
-            self.saveButton.setEnabled(1)
-        self.blendBox.setEnabled(1)
+        else:
+            self.updateMorphingWidget(True)
+            self.progressBar.setVisible(False)
 
     # Function that handles behavior when the user wishes to save the blended image(s)
     # Currently designed to handle generation of the following:
@@ -949,84 +1670,115 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.notificationLine.setText(" Generic Catching Error: Image(s) can't be saved..")
 
     # Function that handles behavior for loading the user's left image
-    def loadDataLeft(self):
-        filePath, _ = QFileDialog.getOpenFileName(self, caption='Open Starting Image File ...', filter="Images (*.png *.jpg *.jpeg)")
-        if not filePath:
+    def loadDataLeft(self, fromDrag=False):
+        self.triangleUpdatePref = int(self.triangleBox.isChecked())
+        self.fullBlendComplete = False
+        self.alphaValue.setEnabled(0)
+        self.alphaSlider.setEnabled(0)
+        self.autoCornerButton.setEnabled(0)
+        self.resetPointsButton.setEnabled(0)
+        self.resizeLeftButton.setEnabled(0)
+        self.resizeRightButton.setEnabled(0)
+        self.blendButton.setEnabled(0)
+        self.triangleBox.setChecked(0)
+        self.triangleBox.setEnabled(0)
+        if fromDrag is False:
+            self.startingImagePath, _ = QFileDialog.getOpenFileName(self, caption='Open Starting Image File ...', filter="Images (*.png *.jpg *.jpeg)")
+        if not self.startingImagePath:
+            self.leftTempPath = ''
+            self.leftTempTextPath = ''
+            self.startingImage.setScaledContents(0)
             return
 
         self.notificationLine.setText(" Left image loaded.")
-        self.triangleUpdatePref = int(self.triangleBox.isChecked())
-        self.fullBlendComplete = False
-        self.alphaValue.setEnabled(0)
-        self.alphaSlider.setEnabled(0)
-        self.autoCornerButton.setEnabled(0)
-        self.blendButton.setEnabled(0)
-        self.triangleBox.setChecked(0)
-        self.triangleBox.setEnabled(0)
         self.displayTriangles()
 
-        self.startingImage.setPixmap(QtGui.QPixmap(filePath))
-        self.startingImage.setScaledContents(1)
-        self.leftSize = (imageio.imread(filePath).shape[1], imageio.imread(filePath).shape[0])
-        self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
-
-        self.startingImagePath = filePath
-
         # Obtain file's name and extension
-        self.startingImageName = re.search('(?<=[/])[^/]+(?=[.])', filePath).group()  # Example: C:/Desktop/TestImage.jpg => TestImage
-        self.startingImageType = os.path.splitext(self.startingImagePath)[1]   # Example: C:/Desktop/TestImage.jpg => .jpg
+        self.startingImageName, self.startingImageType = os.path.splitext(os.path.basename(self.startingImagePath))  # Example: C:/Desktop/TestImage.jpg => ('TestImage', '.jpg')
+
+        self.leftTempPath = ROOT_DIR + os.path.sep + 'PIM_Temp_Left' + self.startingImageType
+        self.lastLeftSize = (self.startingImage.width(), self.startingImage.height())
+        try:
+            temp1 = cv2.imread(self.startingImagePath, cv2.IMREAD_UNCHANGED)
+            tempLeft = cv2.resize(temp1, (self.startingImage.width(), self.startingImage.height()), interpolation=cv2.INTER_AREA)
+        except:
+            temp1 = cv2.imdecode(np.fromfile(self.startingImagePath, dtype=np.uint8), -1)
+            tempLeft = cv2.resize(temp1, (self.startingImage.width(), self.startingImage.height()), interpolation=cv2.INTER_AREA)
+        cv2.imwrite(self.leftTempPath, tempLeft)
+        self.startingImage.setPixmap(QtGui.QPixmap(self.leftTempPath))
+        self.startingImage.setScaledContents(1)
+        self.trueLeftSize = (imageio.imread(self.startingImagePath).shape[1], imageio.imread(self.startingImagePath).shape[0])
+        self.leftSize = (imageio.imread(self.leftTempPath).shape[1], imageio.imread(self.leftTempPath).shape[0])
+        self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
 
         # Create local path to check for the image's text file
         # Example: C:/Desktop/TestImage.jpg => C:/Desktop/TestImage-jpg.txt
-        self.startingTextPath = filePath[:-(len(self.startingImageName + self.startingImageType))] + self.startingImageName + '-' + self.startingImageType[1:] + '.txt'
+        self.startingTextPath = self.startingImagePath[:-(len(self.startingImageName + self.startingImageType))] + self.startingImageName + '-' + self.startingImageType[1:] + '.txt'
 
         # Now assign file's name to desired path for information storage (appending .txt at the end)
         # self.startingTextCorePath = 'C:/Users/USER/PycharmProjects/Personal/Morphing/Images_Points/' + 'TestImage' + '-' + 'jpg' + '.txt'
-        self.startingTextCorePath = os.path.join(ROOT_DIR, 'Images_Points\\' + self.startingImageName + '-' + self.startingImageType[1:] + '.txt')
+        self.startingTextCorePath = os.path.join(ROOT_DIR, 'Images_Points' + os.path.sep + self.startingImageName + '-' + self.startingImageType[1:] + '.txt')
+        self.leftTempTextPath = os.path.join(ROOT_DIR, 'PIM_Temp_Left-' + self.startingImageType[1:] + '.txt')
 
-        self.checkFiles('loadDataLeft', self.startingTextPath, self.startingTextCorePath)
+        self.checkFiles('loadDataLeft', self.startingTextPath, self.startingTextCorePath, self.leftTempTextPath)
 
     # Function that handles behavior for loading the user's right image
-    def loadDataRight(self):
-        filePath, _ = QFileDialog.getOpenFileName(self, caption='Open Ending Image File ...', filter="Images (*.png *.jpg *.jpeg)")
-        if not filePath:
-            return
-
-        self.notificationLine.setText(" Right image loaded.")
+    def loadDataRight(self, fromDrag=False):
         self.triangleUpdatePref = int(self.triangleBox.isChecked())
         self.fullBlendComplete = False
         self.alphaValue.setEnabled(0)
         self.alphaSlider.setEnabled(0)
         self.autoCornerButton.setEnabled(0)
+        self.resetPointsButton.setEnabled(0)
+        self.resizeLeftButton.setEnabled(0)
+        self.resizeRightButton.setEnabled(0)
         self.blendButton.setEnabled(0)
         self.triangleBox.setChecked(0)
         self.triangleBox.setEnabled(0)
+        if fromDrag is False:
+            self.endingImagePath, _ = QFileDialog.getOpenFileName(self, caption='Open Ending Image File ...', filter="Images (*.png *.jpg *.jpeg)")
+        if not self.endingImagePath:
+            self.rightTempPath = ''
+            self.rightTempTextPath = ''
+            self.endingImage.setScaledContents(0)
+
+            return
+
+        self.notificationLine.setText(" Right image loaded.")
         self.displayTriangles()
 
-        self.endingImage.setPixmap(QtGui.QPixmap(filePath))
-        self.endingImage.setScaledContents(1)
-        self.rightSize = (imageio.imread(filePath).shape[1], imageio.imread(filePath).shape[0])
-        self.imageScalar = (self.rightSize[0] / (self.endingImage.geometry().topRight().x() - self.endingImage.geometry().topLeft().x()), self.rightSize[1] / (self.endingImage.geometry().bottomRight().y() - self.endingImage.geometry().topLeft().y()))
-
-        self.endingImagePath = filePath
-
         # Obtain file's name and extension
-        self.endingImageName = re.search('(?<=[/])[^/]+(?=[.])', filePath).group()  # Example: C:/Desktop/TestImage.jpg => TestImage
-        self.endingImageType = os.path.splitext(self.endingImagePath)[1]  # Example: C:/Desktop/TestImage.jpg => .jpg
+        self.endingImageName, self.endingImageType = os.path.splitext(os.path.basename(self.endingImagePath))  # Example: C:/Desktop/TestImage.jpg => ('TestImage', '.jpg')
+
+        self.rightTempPath = ROOT_DIR + os.path.sep + 'PIM_Temp_Right' + self.endingImageType
+        self.lastRightSize = (self.endingImage.width(), self.endingImage.height())
+        try:
+            temp2 = cv2.imread(self.endingImagePath, cv2.IMREAD_UNCHANGED)
+            tempRight = cv2.resize(temp2, (self.endingImage.width(), self.endingImage.height()), interpolation=cv2.INTER_AREA)
+        except:
+            temp2 = cv2.imdecode(np.fromfile(self.endingImagePath, dtype=np.uint8), -1)
+            tempRight = cv2.resize(temp2, (self.endingImage.width(), self.endingImage.height()), interpolation=cv2.INTER_AREA)
+        cv2.imwrite(self.rightTempPath, tempRight)
+        self.endingImage.setPixmap(QtGui.QPixmap(self.rightTempPath))
+        self.endingImage.setScaledContents(1)
+        self.trueRightSize = (imageio.imread(self.endingImagePath).shape[1], imageio.imread(self.endingImagePath).shape[0])
+        self.rightSize = (imageio.imread(self.rightTempPath).shape[1], imageio.imread(self.rightTempPath).shape[0])
+        self.imageScalar = (self.rightSize[0] / (self.endingImage.geometry().topRight().x() - self.endingImage.geometry().topLeft().x()), self.rightSize[1] / (self.endingImage.geometry().bottomRight().y() - self.endingImage.geometry().topLeft().y()))
 
         # Create local path to check for the image's text file
         # Example: C:/Desktop/TestImage.jpg => C:/Desktop/TestImage-jpg.txt
-        self.endingTextPath = filePath[:-(len(self.endingImageName + self.endingImageType))] + self.endingImageName + '-' + self.endingImageType[1:] + '.txt'
+        self.endingTextPath = self.endingImagePath[:-(len(self.endingImageName + self.endingImageType))] + self.endingImageName + '-' + self.endingImageType[1:] + '.txt'
 
         # Now assign file's name to desired path for information storage (appending .txt at the end)
         # self.endingTextCorePath = 'C:/Users/USER/PycharmProjects/Personal/Morphing/Images_Points/' + 'TestImage' + '-' + 'jpg' + '.txt'
-        self.endingTextCorePath = os.path.join(ROOT_DIR, 'Images_Points\\' + self.endingImageName + '-' + self.endingImageType[1:] + '.txt')
+        self.endingTextCorePath = os.path.join(ROOT_DIR, 'Images_Points' + os.path.sep + self.endingImageName + '-' + self.endingImageType[1:] + '.txt')
+        self.rightTempTextPath = os.path.join(ROOT_DIR, 'PIM_Temp_Right-' + self.endingImageType[1:] + '.txt')
 
-        self.checkFiles('loadDataRight', self.endingTextPath, self.endingTextCorePath)
+        self.checkFiles('loadDataRight', self.endingTextPath, self.endingTextCorePath, self.rightTempTextPath)
 
     # Helper function for loadDataLeft and loadDataRight to reduce duplication of code
     # Handles text file generation, loads data, and sets flags where appropriate
-    def checkFiles(self, sourceFunc, basePath, rootPath):
+    def checkFiles(self, sourceFunc, basePath, rootPath, tempPath):
         # If there is already a text file at the location of the selected image, the program assumes that it is what
         # the user intends to start with and moves it to the root path for future manipulation.
         # Otherwise, the program creates an empty file at the root path instead.
@@ -1041,12 +1793,39 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 os.makedirs(os.path.dirname(rootPath))
             open(rootPath, 'a').close()
 
+        # Copy source data to scaled temp file
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tempData = np.loadtxt(rootPath)
+            with open(tempPath, 'w') as file:
+                if sourceFunc == 'loadDataLeft':
+                    for index, x in enumerate(tempData):
+                        if not index and not os.stat(tempPath).st_size:  # left file is empty
+                            file.write('{:>8}{:>8}'.format(str(format(x[0] * (self.leftSize[0] / self.trueLeftSize[0]), ".1f")), str(format(x[1] * (self.leftSize[1] / self.trueLeftSize[1]), ".1f"))))
+                        else:
+                            file.write('\n{:>8}{:>8}'.format(str(format(x[0] * (self.leftSize[0] / self.trueLeftSize[0]), ".1f")), str(format(x[1] * (self.leftSize[1] / self.trueLeftSize[1]), ".1f"))))
+                elif sourceFunc == 'loadDataRight':
+                    for index, y in enumerate(tempData):
+                        if not index and not os.stat(tempPath).st_size:  # left file is empty
+                            file.write('{:>8}{:>8}'.format(str(format(y[0] * (self.rightSize[0] / self.trueRightSize[0]), ".1f")), str(format(y[1] * (self.rightSize[1] / self.trueRightSize[1]), ".1f"))))
+                        else:
+                            file.write('\n{:>8}{:>8}'.format(str(format(y[0] * (self.rightSize[0] / self.trueRightSize[0]), ".1f")), str(format(y[1] * (self.rightSize[1] / self.trueRightSize[1]), ".1f"))))
+
+        # if sourceFunc == 'loadDataLeft':
+        #     for x in tempData:
+        #         x *= (self.leftSize[0] / self.trueLeftSize[0], self.leftSize[1] / self.trueLeftSize[1])
+        # elif sourceFunc == 'loadDataRight':
+        #     for y in tempData:
+        #         y *= (self.rightSize[0] / self.trueRightSize[0], self.rightSize[1] / self.trueRightSize[1])
+        # np.savetxt(tempPath, tempData, fmt='%.1f')
+
         self.added_left_points.clear()
         self.added_right_points.clear()
         self.confirmed_left_points.clear()
         self.confirmed_right_points.clear()
 
-        with open(rootPath, "r") as textFile:
+        # TODO: Do the same thing here with tempPath & self.tempChosen_left_points or some variable like that.
+        with open(tempPath, "r") as textFile:
             if sourceFunc == 'loadDataLeft':
                 self.chosen_left_points.clear()
                 for x in textFile:
@@ -1063,7 +1842,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 self.resetPointsButton.setEnabled(1)
 
             # Check that the two images are the same size - if they aren't, the user should be notified that this won't work
-            if self.leftSize == self.rightSize:
+            if self.trueLeftSize == self.trueRightSize:
                 self.resizeLeftButton.setStyleSheet("")
                 self.resizeRightButton.setStyleSheet("")
                 self.alphaValue.setEnabled(1)
