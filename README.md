@@ -36,13 +36,15 @@ Alternatively, for each module below that your machine does not have installed, 
 
 <b>Imageio</b> - ```pip install imageio```
 
-<b>Matplotlib</b> - ```pip install matplotlib```
+<b>Pynput</b> - ```pip install pynput```
+
+<b>OpenCV</b> - ```pip install opencv-python```
 
 If pip, for whatever reason, is not installed on your machine, enter the following line in a terminal:
 ```
 curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
 ```
-Then navigate to the folder where get-pip.py was downloaded and enter the following line in a terminal:
+Followed by this line afterwards:
 ```
 python get-pip.py
 ```
@@ -61,8 +63,6 @@ A more detailed Help guide is included within PIM's GUI, if needed.
 <p align="center"><i>Proof of Concept - Perspective Shifting</i><p align="center">
 
 ## Development 'To-Do' List:
-- <b>Change:</b> Improved Drawing Performance
-    - <i>There is currently a small delay with point placement when working with larger images.</i>
 - <b>Feature:</b> Automatic Correspondence Determination
     - The user may click a button to have PIM automatically generate points by scanning for similar features between images
 

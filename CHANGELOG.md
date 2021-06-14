@@ -1,3 +1,103 @@
+# Version 2.0 Beta - (2021-06-13)
+<i>This was originally intended to be v1.2 months ago but.. here we are... due to the huge scope of this update, it is being released as a beta first.</i>
+
+## Added
+- <b>New Mouse Modes</b>
+  - In addition to point placement, the user can now switch between two other modes when clicking on input images: <b>Move Mode</b> and <b>Delete Mode</b>
+    - (E) - Move Mode allows the user to drag any previously confirmed point to a new location
+    - (Q) - Delete Mode allows the user to delete any previously confirmed point
+    - Special thanks to GitHub user <b>jankaWIS</b> for [creating this feature request](https://github.com/ddowd97/Python-Image-Morpher/issues/6), which got me to finally add these functionalities to PIM's GUI 
+- <b>Dynamic Image Loading</b>
+  - The user can now load images into the GUI from their OS by dragging and dropping them into the desired window
+  - Input images are now dynamically resized to match the size of their windows in the GUI, <b>greatly</b> improving GUI responsiveness
+    - Larger images (e.g. 1080p, 4K, etc.) are downscaled, smaller images are upscaled
+    - The user's files themselves are unchanged - PIM instead manipulates copies that get cleaned up during termination
+    - Comment: <i> Implementing this was - by far - the most painful thing I have experienced with software development as this ended up impacting pretty much
+      every single part of PIM and it's code... which is also why this release was delayed for so long. I expect that any hotfixes needed for this update will arise
+      from this unexpectedly complicated change, but I will be more than happy if that  isn't the case (please work for others besides me...).</i>
+- <b>Zoom Panning</b>
+  - The user can now pan images while zoomed in by clicking and dragging with the middle-mouse button
+- <b>Zoom Slider</b>
+  - QoL: The user can now manually set the strength of the zoom applied to GUI images (in realtime) for ease of use
+    - Zoom strength is defaulted to 2x during initialization but can now range from 2x to 10x!
+- <b>Triangle Widget Enhancements</b>
+  - In addition to the sliders, the user can now manually enter RGB values for the displayed triangles
+    -  The user can now choose between binary, decimal, or hexadecimal format when setting RGB values
+- <b>More Macros</b>
+  - The following key combinations have been added to support the user's interactions with the GUI:
+    - D = Toggle Display of Delaunay Triangles
+    - E = Toggle Move Mode (for moving individual points)
+    - Q = Toggle Delete Mode (for deleting individual points)
+    - Ctrl + Mouse Wheel =  Adjust Zoom Slider
+        - Comment: <i>Yes, this can be used with zoom panning simultaneously, so go nuts ;)</i>
+    - Shift + Mouse Wheel = Adjust Point Slider
+    - Alt + Mouse Wheel = Adjust Alpha Slider
+## Changes
+- PIM's GUI has received many needed internal changes. The following elements have been changed:
+  - <b>Redesign:</b>
+    - The GUI has been restructured from scratch to containerize separate blocks
+      - As this allows for far more refined control over resizing behavior - which has historically been a very problematic piece of development for this project - <b>EVERY</b> documented resizing bug has been fixed with this change (more details in <b>Fixes</b>)
+  - <b>Miscellaneous:</b>
+    - Minimum size of the main window has changed from <b>(788 x 690)</b> to <b>(844 x 763)</b>
+      - Comment: <i>Still trying to find that sweet spot for the GUI as it is refined and enhanced over time.</i>
+- Optimization: <b>MorphingApp.py</b> no longer conditionally sets minimum/maximum/fixed size rules for the image windows (as Qt handles resizing correctly now)
+- Complete rewrite of <b>blendImages()</b> to support proper QThreading during morphing, preventing GUI lockup
+  - To accompany this change, all functions related to morphing are disabled during the process to prevent exploits
+  - Comment: <i>Trading some performance for stability here since GUI threading during long calculations is good practice anyways. This opened the door to a proper progress bar as well, since that signal can now be emitted.</i>
+- Implemented a proper progress bar for full blending - the notification bar is no longer used for this
+- Full blending now displays frames as they are rendered
+  - PIM will still display the user's specified frame when finished morphing
+- Alpha is now assigned 50% instead of 0% when reset
+- PIM now prompts for confirmation when the Reset Points button is pressed
+- Added queue & warnings to <b>MorphingApp.py</b>'s imports
+- Removed Matplotlib and itertools from <b>Morphing.py</b>'s imports
+  - As it was a dependency that is no longer in use, removed Matplotlib from requirements.txt as well
+  - Comment: <i>This additionally translates to a small performance improvement during Morphing.</i>
+- Added pynput and opencv-python to requirements.txt
+  - Comment: <i>The addition of pynput is to accommodate changes to resizing with this update due to Qt being unable to detect kernel level 
+    interrupts from mouse events in the running OS. This change shouldn't introduce any OS incompatibilities, but please create
+    an issue if resizing the GUI leads to any unexpected issues or crashes. Further, opencv-python has finally been included for it's superior image reading/saving compared to Pillow & Imageio (both of which
+    are planned to be phased out in a future update).</i>
+- Removed NumPy's version restriction in requirements.txt (as the [fmod() issue](https://developercommunity.visualstudio.com/content/problem/1207405/fmod-after-an-update-to-windows-2004-is-causing-a.html) in v1.19.4 has been resolved)
+- Simplified all remaining instances of legacy code where the last index of a list was being accessed
+  - x[len(x)-1] → x[-1]
+- Removed an instance of self.repaint() inside <b>MorphingApp.py</b>'s checkResize()
+- Removed multiple instances of self.refreshPaint() inside <b>MorphingApp.py</b>'s keyPressEvent()
+- Updated README.md
+- And much, much more
+
+## Fixes
+- Every single documented resizing bug has been hit with this update's GUI changes, including but not limited to:
+  - <b>Fixed</b>: Input images would expand (or rarely shrink) by 2 pixels when loaded or each time the GUI was resized (very common)
+  - <b>Fixed</b>: The bottom half of the GUI would often vertically expand/collapse before the top half (very common)
+  - <b>Fixed</b>: The left half of the GUI would often horizontally expand/collapse before the right half (uncommon)
+  - <b>Fixed</b>: Zooming into input images would cause random, incorrect resizing behavior (common)
+  - <b>Fixed</b>: When maximized, the GUI would resize incorrectly with conditionally varying severity (very common)
+  - <b>Fixed</b>: Inconsistent resizing behavior before and after a morph had been executed (very common)
+- Fixed a <b>long</b>-standing bug where the GUI could temporarily become unresponsive while morphing
+  - Additionally, fixed a bug where inputs to the GUI would be propagated during morphing
+    - Example: This could lead to chain-morphing if the blend button was clicked more than once
+- Fixed a bug where PIM could treat certain incompatible images as standard .jpg, causing a crash during morphing
+- Fixed a bug where zooming in on the lower third of either input image would be visibly distorted 
+- Prioritized GUI parameter assignment to come first in the loadImage functions - thereby resolving several bugs & crashes
+- Fixed an amusing bug where the Help tab could be edited by the user
+- Fixed a crash that could occur upon resetting the alpha slider after executing a full blend
+- Resolved a minor GUI issue where, when enabled, Green/Blue triangle color value text would remain grey until updated
+- Fixed a bug where the <b>Add Corners</b> button would sometimes not enable after clicking <b>Resize Left Image</b> or <b>Resize Right Image</b>
+- Corrected a notification bar bug when one image has been loaded and user tries to add point
+- Other general code cleanup
+
+## Known Bugs
+- While zoomed in, issue with highlighting points to be manually moved or deleted
+- After clicking Resize Left/Right, points on the GUI do not visibly scale correctly
+  - Comment: <i>This is a purely visual bug. For now, this issue can be circumvented by just reloading the affected image. </i>
+  
+## Unreleased
+- Key Macro: Tab / Shift + Tab = Switch Morphing Tab
+- Configuration Tab
+  - Comment: <i>In the future, this tab will be used to set/reload default parameters for PIM to use on initialization. Still planning out what I do 
+    and don't want to be included in this tab though, so it has been excluded from this release.</i>
+
 # Version 1.1.0 - (2021-01-16)
 ## Known Bugs
 - The GUI can sometimes become unresponsive during morphing calculations (but eventually returns to normal)
@@ -33,7 +133,7 @@
     
 ## Added
 - <b>Image Zoom</b> - Because sometimes, it's hard to get that one point just right.
-  - The user can now right click on either [or both] of the input images to toggle zoom for more accurate point placement
+  - The user can now right-click on either [or both] of the input images to toggle zoom for more accurate point placement
     - Comment: <i>Sheesh, this was difficult to implement correctly with Qt. Currently this feature is using a default (and moderate) 
       zoom strength of 2x, but this may be subject to change in the future - might use 2.5x or 3x if it seems that 2x isn't cutting it.</i>
 
