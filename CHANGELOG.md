@@ -1,5 +1,6 @@
-# Version 2.0 Beta - (2021-06-13)
-<i>This was originally intended to be v1.2 months ago but.. here we are... due to the huge scope of this update, it is being released as a beta first.</i>
+# Version 2.0.0 - (2021-07-28)
+<i>As no issues have been reported with 2.0.0 Beta, it is now being released as Stable with a couple additions (highlighted red).</i>
+# This update includes new dependencies - Please run the command "pip install -r requirements.txt" or equivalent after downloading.
 
 ## Added
 - <b>New Mouse Modes</b>
@@ -20,6 +21,10 @@
 - <b>Zoom Slider</b>
   - QoL: The user can now manually set the strength of the zoom applied to GUI images (in realtime) for ease of use
     - Zoom strength is defaulted to 2x during initialization but can now range from 2x to 10x!
+- <span style="color: red;"><b>Automatic Versioning Checker</b></span>
+  - <span style="color: red;">On startup, PIM now checks your currently installed version against the latest stable release hosted on GitHub</span>
+  - <span style="color: red;">A prompt is provided to automatically navigate the user to the latest release, if not up to update</span>
+      - <span style="color: red;">PIM does not support automatic update installation at this time</span>
 - <b>Triangle Widget Enhancements</b>
   - In addition to the sliders, the user can now manually enter RGB values for the displayed triangles
     -  The user can now choose between binary, decimal, or hexadecimal format when setting RGB values
@@ -53,11 +58,14 @@
 - Removed Matplotlib and itertools from <b>Morphing.py</b>'s imports
   - As it was a dependency that is no longer in use, removed Matplotlib from requirements.txt as well
   - Comment: <i>This additionally translates to a small performance improvement during Morphing.</i>
-- Added pynput and opencv-python to requirements.txt
+- Added pynput, <span style="color: red;">beautifulsoup</span>, & opencv-python to requirements.txt
   - Comment: <i>The addition of pynput is to accommodate changes to resizing with this update due to Qt being unable to detect kernel level 
     interrupts from mouse events in the running OS. This change shouldn't introduce any OS incompatibilities, but please create
-    an issue if resizing the GUI leads to any unexpected issues or crashes. Further, opencv-python has finally been included for it's superior image reading/saving compared to Pillow & Imageio (both of which
+    an issue if resizing the GUI leads to any unexpected issues or crashes. <span style="color: red;">BeautifulSoup allows PIM to check for updates online.</span>
+    Opencv-python has finally been included for it's superior image reading/saving compared to Pillow & Imageio (both of which
     are planned to be phased out in a future update).</i>
+- <span style="color: red;">Added version.txt to facilitate automatic versioning checks.</span>
+  - <span style="color: red;">Comment: <i>Modifying, deleting, or moving this file will confuse PIM and ruin its day, but should not cause issues for you.</i></span>
 - Removed NumPy's version restriction in requirements.txt (as the [fmod() issue](https://developercommunity.visualstudio.com/content/problem/1207405/fmod-after-an-update-to-windows-2004-is-causing-a.html) in v1.19.4 has been resolved)
 - Simplified all remaining instances of legacy code where the last index of a list was being accessed
   - x[len(x)-1] → x[-1]

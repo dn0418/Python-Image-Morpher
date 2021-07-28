@@ -3,6 +3,7 @@
 #            Email:      ddowd97@gmail.com
 #######################################################
 
+# Built-in Modules #
 import queue
 import multiprocessing
 import sys
@@ -10,13 +11,17 @@ import os
 import warnings
 import time
 import shutil
+import requests
+import math
+import webbrowser
 
+# External Modules - These require installation via the command: "pip install -r requirements.txt" #
 import PyQt5.QtCore
 import cv2
 import imageio
 from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog
-import math
 from pynput import mouse
+from bs4 import BeautifulSoup
 
 from Morphing import *
 from MorphingGUI import *
@@ -119,7 +124,6 @@ class FrameThread(QtCore.QThread):
 
 
 class MorphingApp(QMainWindow, Ui_MainWindow):
-
     def __init__(self, parent=None):
         super(MorphingApp, self).__init__(parent)
         self.setupUi(self)
@@ -219,6 +223,36 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.resetPointsButton.clicked.connect(self.resetPoints)                        # When the reset points button is clicked, begins logic for removing points
         self.resetSliderButton.clicked.connect(self.resetAlphaSlider)                   # When the reset slider button is clicked, begins logic for resetting it to default
         self.autoCornerButton.clicked.connect(self.autoCorner)                          # When the add   corner button is clicked, begins logic for adding corner points
+
+        self.checkUpdate()
+
+    # Simple function for checking whether you are up to date. :)
+    def checkUpdate(self):
+        resp = requests.get('https://github.com/ddowd97/Python-Image-Morpher/releases/latest')
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            l = soup.find("div", {"class": "release-header"})
+            temp = l.findNext("a")
+            gitVer = temp.text.split(' ')[-1][1:]
+
+            try:
+                with open('version.txt', 'r') as file:
+                    localVer = file.readline()[1:]
+            except FileNotFoundError:
+                print('Cannot obtain installed version number. Is version.txt missing?')
+
+            for x, y in zip(gitVer.split('.'), localVer.split('.')):
+                if int(x) > int(y):
+                    verStr = "Installed: {0}\tAvailable: {1}".format(localVer, gitVer)
+                    userResponse = QtWidgets.QMessageBox.question(self, "Update Available", verStr + "\n\nDo you want to update now? This will close the program and open the latest release on your browser. Please extract the zip file over your current installation.", QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+                    if userResponse == QtWidgets.QMessageBox.Yes:
+                        webbrowser.open('https://github.com/ddowd97/Python-Image-Morpher/releases/latest')
+                        sys.exit()
+                    return
+
+            print("You are up to date.")
+        else:
+            print("Cannot obtain GitHub version number. Is GitHub down?")
 
     def eventFilter(self, source, event):
         if event.type() == QtCore.QEvent.MouseButtonPress:
