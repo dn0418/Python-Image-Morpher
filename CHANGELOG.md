@@ -1,5 +1,5 @@
 # Version 2.0.0 - (2021-07-28)
-<i>As no issues have been reported with 2.0.0 Beta, it is now being released as Stable with a couple additions (highlighted red).</i>
+<i>As no issues have been reported with 2.0.0 Beta, it is now being released as Stable with a couple additions.</i>
 # This update includes new dependencies - Please run the command "pip install -r requirements.txt" or equivalent after downloading.
 
 ## Added
