@@ -106,6 +106,17 @@
   - Comment: <i>In the future, this tab will be used to set/reload default parameters for PIM to use on initialization. Still planning out what I do 
     and don't want to be included in this tab though, so it has been excluded from this release.</i>
 
+# Version 1.1.2 - (2021-05-02)
+# Hotfix:
+- Fixed a bug where the absolute path to Images_Points was incorrectly assigned for non-Windows machines
+  - '\\\\' → os.path.sep
+  
+# Version 1.1.1 - (2021-04-29)
+# Hotfix:
+- Fixed a bug where starting/ending image names could be incorrectly assigned when certain OS conditions were met
+  - re.search('(?<=[/])[^/]+(?=[.])', x).group() → os.path.splitext(os.path.basename(x))
+
+
 # Version 1.1.0 - (2021-01-16)
 ## Known Bugs
 - The GUI can sometimes become unresponsive during morphing calculations (but eventually returns to normal)
