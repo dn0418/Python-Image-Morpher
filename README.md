@@ -40,6 +40,8 @@ Alternatively, for each module below that your machine does not have installed, 
 
 <b>OpenCV</b> - ```pip install opencv-python```
 
+<b>BeautifulSoup</b> - ```pip install beautifulsoup4```
+
 If pip, for whatever reason, is not installed on your machine, enter the following line in a terminal:
 ```
 curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
@@ -63,9 +65,14 @@ A more detailed Help guide is included within PIM's GUI, if needed.
 <p align="center"><i>Proof of Concept - Perspective Shifting</i><p align="center">
 
 ## Development 'To-Do' List:
+Although I feel that PIM is now feature complete as a project, I will continue to support it with updates as they come to me. This potentially includes, but does <b>not</b> guarantee:
 - <b>Feature:</b> Automatic Correspondence Determination
-    - The user may click a button to have PIM automatically generate points by scanning for similar features between images
+    - PIM may automatically generate points by scanning for similar features between images
+- <b>Feature:</b> Automatic Update Installation
+- <b>Feature:</b> Configuration Tab in GUI 
+  - The user can set/reset default parameters for PIMs GUI to use on initialization
+- <b>Enhancement:</b> Undo/Redo Compatibility with Move/Delete Mouse Modes
 
 If you encounter an error, a bug, or if you simply wish to request a change/feature, please file an issue using the tracker that GitHub provides, [here](https://github.com/ddowd97/Morphing/issues).
 
-If you like what you see, feel free to contact me on [LinkedIn](https://www.linkedin.com/in/davidmilesdowd/).
+If you like what you see, feel free to contact me on [LinkedIn](https://www.linkedin.com/in/davidmilesdowd/) or check out my [website](https://ddowd97.github.io/) (WIP as time allows).
