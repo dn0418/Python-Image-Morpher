@@ -21,10 +21,10 @@
 - <b>Zoom Slider</b>
   - QoL: The user can now manually set the strength of the zoom applied to GUI images (in realtime) for ease of use
     - Zoom strength is defaulted to 2x during initialization but can now range from 2x to 10x!
-- <span style="color: red;"><b>Automatic Versioning Checker</b></span>
-  - <span style="color: red;">On startup, PIM now checks your currently installed version against the latest stable release hosted on GitHub</span>
-  - <span style="color: red;">A prompt is provided to automatically navigate the user to the latest release, if not up to update</span>
-      - <span style="color: red;">PIM does not support automatic update installation at this time</span>
+- <b>Automatic Versioning Checker</b>
+  - On startup, PIM now checks your currently installed version against the latest stable release hosted on GitHub
+  - A prompt is provided to automatically navigate the user to the latest release, if not up to update
+      - PIM does not support automatic update installation at this time
 - <b>Triangle Widget Enhancements</b>
   - In addition to the sliders, the user can now manually enter RGB values for the displayed triangles
     -  The user can now choose between binary, decimal, or hexadecimal format when setting RGB values
@@ -58,14 +58,14 @@
 - Removed Matplotlib and itertools from <b>Morphing.py</b>'s imports
   - As it was a dependency that is no longer in use, removed Matplotlib from requirements.txt as well
   - Comment: <i>This additionally translates to a small performance improvement during Morphing.</i>
-- Added pynput, <span style="color: red;">beautifulsoup</span>, & opencv-python to requirements.txt
+- Added pynput, beautifulsoup, & opencv-python to requirements.txt
   - Comment: <i>The addition of pynput is to accommodate changes to resizing with this update due to Qt being unable to detect kernel level 
     interrupts from mouse events in the running OS. This change shouldn't introduce any OS incompatibilities, but please create
-    an issue if resizing the GUI leads to any unexpected issues or crashes. <span style="color: red;">BeautifulSoup allows PIM to check for updates online.</span>
+    an issue if resizing the GUI leads to any unexpected issues or crashes. BeautifulSoup allows PIM to check for updates online.
     Opencv-python has finally been included for it's superior image reading/saving compared to Pillow & Imageio (both of which
     are planned to be phased out in a future update).</i>
-- <span style="color: red;">Added version.txt to facilitate automatic versioning checks.</span>
-  - <span style="color: red;">Comment: <i>Modifying, deleting, or moving this file will confuse PIM and ruin its day, but should not cause issues for you.</i></span>
+- Added version.txt to facilitate automatic versioning checks.
+  - Comment: <i>Modifying, deleting, or moving this file will confuse PIM and ruin its day, but should not cause issues for you.</i>
 - Removed NumPy's version restriction in requirements.txt (as the [fmod() issue](https://developercommunity.visualstudio.com/content/problem/1207405/fmod-after-an-update-to-windows-2004-is-causing-a.html) in v1.19.4 has been resolved)
 - Simplified all remaining instances of legacy code where the last index of a list was being accessed
   - x[len(x)-1] → x[-1]
