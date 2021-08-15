@@ -1,3 +1,10 @@
+# Version 2.0.1 - (2021-08-15)
+## Fixes
+- Resolved crash when the total point pair count was brought below three through Delete Mode
+- Corrected issue with Delete Mode that caused points to be improperly deleted (eventually cascaded into crashes)
+- Fixed bug with image loading that caused PIM to crash when only one point pair was previously saved
+- Removed unnecessary print statement on startup
+
 # Version 2.0.0 - (2021-07-28)
 <i>As no issues have been reported with 2.0.0 Beta, it is now being released as Stable with a couple additions.</i>
 # This update includes new dependencies - Please run the command "pip install -r requirements.txt" or equivalent after downloading.
@@ -23,7 +30,7 @@
     - Zoom strength is defaulted to 2x during initialization but can now range from 2x to 10x!
 - <b>Automatic Versioning Checker</b>
   - On startup, PIM now checks your currently installed version against the latest stable release hosted on GitHub
-  - A prompt is provided to automatically navigate the user to the latest release, if not up to update
+  - A prompt is provided to automatically navigate the user to the latest release, if not up to date
       - PIM does not support automatic update installation at this time
 - <b>Triangle Widget Enhancements</b>
   - In addition to the sliders, the user can now manually enter RGB values for the displayed triangles

@@ -249,8 +249,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                         webbrowser.open('https://github.com/ddowd97/Python-Image-Morpher/releases/latest')
                         sys.exit()
                     return
-
-            print("You are up to date.")
         else:
             print("Cannot obtain GitHub version number. Is GitHub down?")
 
@@ -688,8 +686,8 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         data = open(filePath, 'r').readlines()
         del data[index]
         if data:
-            if len(data) > index:
-                data[index] = data[index][0:int(len(data[index]) - 1)]  # Remove \n
+            if len(data) - 1 > index:
+                data[index] = data[index][0:int(len(data[index]) - 1)] + '\n'
             else:
                 data[-1] = data[-1][0:int(len(data[-1]) - 1)]  # Remove \n
             open(filePath, 'w').writelines(data)
@@ -1294,6 +1292,20 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                     self.deletePoint(self.leftTempTextPath)
                     self.deletePoint(self.endingTextCorePath)
                     self.deletePoint(self.rightTempTextPath)
+
+                    if len(self.chosen_left_points) + len(self.confirmed_left_points) >= 3:
+                        self.displayTriangles()
+                        self.blendButton.setEnabled(1)
+                    else:
+                        self.triangleUpdatePref = int(self.triangleBox.isChecked())
+                        self.triangleBox.setChecked(0)
+                        self.triangleBox.setEnabled(0)
+                        self.blendButton.setEnabled(0)
+                        self.displayTriangles()
+                        if len(self.chosen_left_points) + len(self.confirmed_left_points) == 0:
+                            self.resetPointsButton.setEnabled(0)
+                    self.refreshPaint()
+                    self.autoCornerButton.setEnabled(len(self.added_left_points) == len(self.added_right_points) == 0)
                 elif self.moveMode:
                     self.setMouseTracking(True)
                     self.hoverFlag = True
@@ -1833,17 +1845,29 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             tempData = np.loadtxt(rootPath)
             with open(tempPath, 'w') as file:
                 if sourceFunc == 'loadDataLeft':
-                    for index, x in enumerate(tempData):
-                        if not index and not os.stat(tempPath).st_size:  # left file is empty
-                            file.write('{:>8}{:>8}'.format(str(format(x[0] * (self.leftSize[0] / self.trueLeftSize[0]), ".1f")), str(format(x[1] * (self.leftSize[1] / self.trueLeftSize[1]), ".1f"))))
+                    if len(tempData.shape) == 1 and len(tempData) > 0:  # only one point pair in files (this requires different loading syntax...)
+                        if not os.stat(tempPath).st_size:  # left file is empty
+                            file.write('{:>8}{:>8}'.format(str(format(tempData[0] * (self.leftSize[0] / self.trueLeftSize[0]), ".1f")), str(format(tempData[1] * (self.leftSize[1] / self.trueLeftSize[1]), ".1f"))))
                         else:
-                            file.write('\n{:>8}{:>8}'.format(str(format(x[0] * (self.leftSize[0] / self.trueLeftSize[0]), ".1f")), str(format(x[1] * (self.leftSize[1] / self.trueLeftSize[1]), ".1f"))))
+                            file.write('\n{:>8}{:>8}'.format(str(format(tempData[0] * (self.leftSize[0] / self.trueLeftSize[0]), ".1f")), str(format(tempData[1] * (self.leftSize[1] / self.trueLeftSize[1]), ".1f"))))
+                    else:
+                        for index, x in enumerate(tempData):
+                            if not index and not os.stat(tempPath).st_size:  # left file is empty
+                                file.write('{:>8}{:>8}'.format(str(format(x[0] * (self.leftSize[0] / self.trueLeftSize[0]), ".1f")), str(format(x[1] * (self.leftSize[1] / self.trueLeftSize[1]), ".1f"))))
+                            else:
+                                file.write('\n{:>8}{:>8}'.format(str(format(x[0] * (self.leftSize[0] / self.trueLeftSize[0]), ".1f")), str(format(x[1] * (self.leftSize[1] / self.trueLeftSize[1]), ".1f"))))
                 elif sourceFunc == 'loadDataRight':
-                    for index, y in enumerate(tempData):
-                        if not index and not os.stat(tempPath).st_size:  # left file is empty
-                            file.write('{:>8}{:>8}'.format(str(format(y[0] * (self.rightSize[0] / self.trueRightSize[0]), ".1f")), str(format(y[1] * (self.rightSize[1] / self.trueRightSize[1]), ".1f"))))
+                    if len(tempData.shape) == 1 and len(tempData) > 0:  # only one point pair in files (this requires different loading syntax...)
+                        if not os.stat(tempPath).st_size:  # left file is empty
+                            file.write('{:>8}{:>8}'.format(str(format(tempData[0] * (self.rightSize[0] / self.trueRightSize[0]), ".1f")), str(format(tempData[1] * (self.rightSize[1] / self.trueRightSize[1]), ".1f"))))
                         else:
-                            file.write('\n{:>8}{:>8}'.format(str(format(y[0] * (self.rightSize[0] / self.trueRightSize[0]), ".1f")), str(format(y[1] * (self.rightSize[1] / self.trueRightSize[1]), ".1f"))))
+                            file.write('\n{:>8}{:>8}'.format(str(format(tempData[0] * (self.rightSize[0] / self.trueRightSize[0]), ".1f")), str(format(tempData[1] * (self.rightSize[1] / self.trueRightSize[1]), ".1f"))))
+                    else:
+                        for index, y in enumerate(tempData):
+                            if not index and not os.stat(tempPath).st_size:  # left file is empty
+                                file.write('{:>8}{:>8}'.format(str(format(y[0] * (self.rightSize[0] / self.trueRightSize[0]), ".1f")), str(format(y[1] * (self.rightSize[1] / self.trueRightSize[1]), ".1f"))))
+                            else:
+                                file.write('\n{:>8}{:>8}'.format(str(format(y[0] * (self.rightSize[0] / self.trueRightSize[0]), ".1f")), str(format(y[1] * (self.rightSize[1] / self.trueRightSize[1]), ".1f"))))
 
         # if sourceFunc == 'loadDataLeft':
         #     for x in tempData:
