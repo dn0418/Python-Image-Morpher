@@ -228,29 +228,38 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
 
     # Simple function for checking whether you are up to date. :)
     def checkUpdate(self):
-        resp = requests.get('https://github.com/ddowd97/Python-Image-Morpher/releases/latest')
-        if resp.status_code == 200:
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            l = soup.find("div", {"class": "release-header"})
-            temp = l.findNext("a")
-            gitVer = temp.text.split(' ')[-1][1:]
+        resp = requests.get('https://api.github.com/repos/ddowd97/Python-Image-Morpher/releases/latest')
 
-            try:
-                with open('version.txt', 'r') as file:
-                    localVer = file.readline()[1:]
-            except FileNotFoundError:
-                print('Cannot obtain installed version number. Is version.txt missing?')
+        try:
+            with open('version.txt', 'r') as file:
+                localVer = file.readline()[1:]
 
-            for x, y in zip(gitVer.split('.'), localVer.split('.')):
-                if int(x) > int(y):
-                    verStr = "Installed: {0}\tAvailable: {1}".format(localVer, gitVer)
-                    userResponse = QtWidgets.QMessageBox.question(self, "Update Available", verStr + "\n\nDo you want to update now? This will close the program and open the latest release on your browser. Please extract the zip file over your current installation.", QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-                    if userResponse == QtWidgets.QMessageBox.Yes:
-                        webbrowser.open('https://github.com/ddowd97/Python-Image-Morpher/releases/latest')
-                        sys.exit()
-                    return
-        else:
-            print("Cannot obtain GitHub version number. Is GitHub down?")
+            if resp.status_code == 200 and localVer is not None:
+                gitVer = resp.json()["tag_name"][1:]
+
+                for x, y in zip(gitVer.split('.'), localVer.split('.')):
+                    if int(x) > int(y):
+                        verStr = "Installed: {0}\tAvailable: {1}".format(localVer, gitVer)
+                        userResponse = QtWidgets.QMessageBox.question(self, "Update Available", verStr + "\n\nDo you want to update now? This will close the program and open the latest release on your browser. Please extract the zip file over your current installation.", QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+                        if userResponse == QtWidgets.QMessageBox.Yes:
+                            webbrowser.open('https://github.com/ddowd97/Python-Image-Morpher/releases/latest')
+                            sys.exit()
+                        return
+            elif resp.status_code != 200:
+                verStr = "Installed: {0}\tAvailable: {1}".format(localVer, 'NULL')
+                userResponse = QtWidgets.QMessageBox.question(self, "Unexpected Error", verStr + "\n\nFailed to check for updates - Unable to retrieve latest GitHub version number.\nDo you want to open  Python Image Morpher's latest release page now?", QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+                if userResponse == QtWidgets.QMessageBox.Yes:
+                    webbrowser.open('https://github.com/ddowd97/Python-Image-Morpher/releases/latest')
+                    sys.exit()
+                return
+            else:
+                userResponse = QtWidgets.QMessageBox.question(self, "Unexpected Error", "Failed to check for updates - Unable to retrieve local version number.\nPlease check whether version.txt is present and unmodified.\n\nDo you want to open  Python Image Morpher's latest release page now?", QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+                if userResponse == QtWidgets.QMessageBox.Yes:
+                    webbrowser.open('https://github.com/ddowd97/Python-Image-Morpher/releases/latest')
+                    sys.exit()
+                return
+        except FileNotFoundError:
+            print('Cannot obtain installed version number. Is version.txt missing?')
 
     def eventFilter(self, source, event):
         if event.type() == QtCore.QEvent.MouseButtonPress:
