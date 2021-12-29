@@ -40,7 +40,7 @@ Alternatively, for each module below that your machine does not have installed, 
 
 <b>OpenCV</b> - ```pip install opencv-python```
 
-<b>BeautifulSoup</b> - ```pip install beautifulsoup4```
+<b>Requests</b> - ```pip install requests```
 
 If pip, for whatever reason, is not installed on your machine, enter the following line in a terminal:
 ```
