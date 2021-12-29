@@ -2503,7 +2503,7 @@
                <widget class="QWidget" name="widget_2" native="true">
                 <layout class="QGridLayout" name="gridLayout_8">
                  <item row="0" column="0">
-                  <widget class="QLabel" name="label_6">
+                  <widget class="QLabel" name="configTransparentLabel">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
@@ -2513,14 +2513,14 @@
                   </widget>
                  </item>
                  <item row="2" column="2" colspan="2">
-                  <widget class="QLineEdit" name="lineEdit_9">
+                  <widget class="QLineEdit" name="configSavingValue">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
                   </widget>
                  </item>
                  <item row="1" column="2">
-                  <widget class="QCheckBox" name="checkBox_2">
+                  <widget class="QCheckBox" name="configFullBlendBool">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
@@ -2536,7 +2536,7 @@
                   </widget>
                  </item>
                  <item row="1" column="0">
-                  <widget class="QLabel" name="label_7">
+                  <widget class="QLabel" name="configFullBlendLabel">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
@@ -2546,14 +2546,14 @@
                   </widget>
                  </item>
                  <item row="1" column="3">
-                  <widget class="QLineEdit" name="lineEdit_8">
+                  <widget class="QLineEdit" name="configFullBlendValue">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
                   </widget>
                  </item>
                  <item row="0" column="2">
-                  <widget class="QCheckBox" name="checkBox_3">
+                  <widget class="QCheckBox" name="configTransparentBool">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
@@ -2569,7 +2569,7 @@
                   </widget>
                  </item>
                  <item row="2" column="0">
-                  <widget class="QLabel" name="label_9">
+                  <widget class="QLabel" name="configSavingBool">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
@@ -2608,7 +2608,7 @@
                 <property name="sizeHint" stdset="0">
                  <size>
                   <width>20</width>
-                  <height>15</height>
+                  <height>8</height>
                  </size>
                 </property>
                </spacer>
@@ -2618,15 +2618,21 @@
                 <property name="minimumSize">
                  <size>
                   <width>0</width>
-                  <height>50</height>
+                  <height>30</height>
                  </size>
                 </property>
                 <layout class="QHBoxLayout" name="horizontalLayout_7">
                  <property name="spacing">
                   <number>20</number>
                  </property>
+                 <property name="topMargin">
+                  <number>4</number>
+                 </property>
+                 <property name="bottomMargin">
+                  <number>4</number>
+                 </property>
                  <item>
-                  <widget class="QPushButton" name="pushButton">
+                  <widget class="QPushButton" name="configSaveButton">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
@@ -2636,7 +2642,7 @@
                   </widget>
                  </item>
                  <item>
-                  <widget class="QPushButton" name="pushButton_2">
+                  <widget class="QPushButton" name="configRestoreButton">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
@@ -2651,8 +2657,18 @@
               <item row="0" column="0">
                <widget class="QWidget" name="widget" native="true">
                 <layout class="QGridLayout" name="gridLayout_7">
-                 <item row="3" column="3">
-                  <widget class="QComboBox" name="comboBox_2">
+                 <item row="3" column="0">
+                  <widget class="QLabel" name="configBlueLabel">
+                   <property name="enabled">
+                    <bool>false</bool>
+                   </property>
+                   <property name="text">
+                    <string>Blue Value</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="4" column="3">
+                  <widget class="QComboBox" name="configRGBTypeValue">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
@@ -2664,18 +2680,42 @@
                    </property>
                   </widget>
                  </item>
-                 <item row="2" column="0">
-                  <widget class="QLabel" name="label_3">
+                 <item row="4" column="1">
+                  <widget class="QCheckBox" name="configTriangleBool">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
                    <property name="text">
-                    <string>Blue Value</string>
+                    <string/>
                    </property>
                   </widget>
                  </item>
-                 <item row="3" column="2">
-                  <widget class="QLabel" name="label_5">
+                 <item row="1" column="1" colspan="3">
+                  <widget class="QLineEdit" name="configRedValue">
+                   <property name="enabled">
+                    <bool>false</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="2" column="0">
+                  <widget class="QLabel" name="configGreenLabel">
+                   <property name="enabled">
+                    <bool>false</bool>
+                   </property>
+                   <property name="text">
+                    <string>Green Value</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="2" column="1" colspan="3">
+                  <widget class="QLineEdit" name="configGreenValue">
+                   <property name="enabled">
+                    <bool>false</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="4" column="2">
+                  <widget class="QLabel" name="configRGBTypeLabel">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
@@ -2685,17 +2725,7 @@
                   </widget>
                  </item>
                  <item row="1" column="0">
-                  <widget class="QLabel" name="label_2">
-                   <property name="enabled">
-                    <bool>false</bool>
-                   </property>
-                   <property name="text">
-                    <string>Green Value</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="0" column="0">
-                  <widget class="QLabel" name="label">
+                  <widget class="QLabel" name="configRedLabel">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
@@ -2704,8 +2734,8 @@
                    </property>
                   </widget>
                  </item>
-                 <item row="3" column="0">
-                  <widget class="QLabel" name="label_4">
+                 <item row="4" column="0">
+                  <widget class="QLabel" name="configTriangleLabel">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
@@ -2714,32 +2744,25 @@
                    </property>
                   </widget>
                  </item>
-                 <item row="1" column="1" colspan="3">
-                  <widget class="QLineEdit" name="lineEdit_2">
+                 <item row="3" column="1" colspan="3">
+                  <widget class="QLineEdit" name="configBlueValue">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
                   </widget>
                  </item>
-                 <item row="2" column="1" colspan="3">
-                  <widget class="QLineEdit" name="lineEdit_3">
-                   <property name="enabled">
-                    <bool>false</bool>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="3" column="1">
-                  <widget class="QCheckBox" name="checkBox">
+                 <item row="0" column="0">
+                  <widget class="QLabel" name="configImagePathLabel">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
                    <property name="text">
-                    <string/>
+                    <string>Image Path</string>
                    </property>
                   </widget>
                  </item>
                  <item row="0" column="1" colspan="3">
-                  <widget class="QLineEdit" name="lineEdit">
+                  <widget class="QLineEdit" name="configImagePathString">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>

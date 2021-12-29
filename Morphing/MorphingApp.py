@@ -21,7 +21,6 @@ import cv2
 import imageio
 from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog
 from pynput import mouse
-from bs4 import BeautifulSoup
 
 from Morphing import *
 from MorphingGUI import *
@@ -130,7 +129,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.progressBar.setVisible(False)
         self.setWindowIcon(QtGui.QIcon("./Morphing.ico"))
         self.setAcceptDrops(True)
-        self.tabWidget.removeTab(2)  # Configuration Tab is still in development, so this hides it for now ;)
         self.triangleRedValue.installEventFilter(self)
         self.triangleGreenValue.installEventFilter(self)
         self.triangleBlueValue.installEventFilter(self)
@@ -140,19 +138,19 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.tabWidget.setMinimumHeight(307)
 
         # Defaults on Startup
-        self.chosen_left_points = []                                            # List used to store points confirmed in previous sessions (LEFT)
-        self.chosen_right_points = []                                           # List used to store points confirmed in previous sessions (RIGHT)
-        self.added_left_points = []                                             # List used to store temporary points added in current session (LEFT)
-        self.added_right_points = []                                            # List used to store temporary points added in current session (RIGHT)
-        self.confirmed_left_points = []                                         # List used to store existing points confirmed in current session (LEFT)
-        self.confirmed_right_points = []                                        # List used to store existing points confirmed in current session (RIGHT)
-        self.placed_points_history = []                                         # List used to log recent points placed during this session for CTRL + Y
-        self.clicked_window_history = [-1]                                      # List used to log the order in which the image windows have been clicked - functions as a "stack"
-        self.leftPolyList = []                                                  # List used to store delaunay triangles (LEFT)
-        self.rightPolyList = []                                                 # List used to store delaunay triangles (RIGHT)
-        self.blendList = []                                                     # List used to store a variable amount of alpha increment frames for full blending
-        self.zoomPanRef = []                                                    # List used to store the source image and coordinate that initiate a zoom panning event
-        self.movingPoint = ['', '', 0, QtCore.QPoint(-1, -1), QtCore.QPoint(-1, -1)]  # List used to store the type of point being moved as well as it's source, index, previous & current coordinates
+        self.chosen_left_points = []                                                    # List used to store points confirmed in previous sessions (LEFT)
+        self.chosen_right_points = []                                                   # List used to store points confirmed in previous sessions (RIGHT)
+        self.added_left_points = []                                                     # List used to store temporary points added in current session (LEFT)
+        self.added_right_points = []                                                    # List used to store temporary points added in current session (RIGHT)
+        self.confirmed_left_points = []                                                 # List used to store existing points confirmed in current session (LEFT)
+        self.confirmed_right_points = []                                                # List used to store existing points confirmed in current session (RIGHT)
+        self.placed_points_history = []                                                 # List used to log recent points placed during this session for CTRL + Y
+        self.clicked_window_history = [-1]                                              # List used to log the order in which the image windows have been clicked - functions as a "stack"
+        self.leftPolyList = []                                                          # List used to store delaunay triangles (LEFT)
+        self.rightPolyList = []                                                         # List used to store delaunay triangles (RIGHT)
+        self.blendList = []                                                             # List used to store a variable amount of alpha increment frames for full blending
+        self.zoomPanRef = []                                                            # List used to store the source image and coordinate that initiate a zoom panning event
+        self.movingPoint = ['', '', 0, QtCore.QPoint(-1, -1), QtCore.QPoint(-1, -1)]    # List used to store the type of point being moved as well as it's source, index, previous & current coordinates
 
         self.startingImagePath = ''                                             # String used to store file path to the left image
         self.endingImagePath = ''                                               # String used to store file path to the right image
@@ -168,6 +166,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.rightTempPath = ''                                                 # String used to store temp file path for resizing right image in GUI
         self.leftTempTextPath = ''                                              # String used to store temp file path for resizing left image in GUI
         self.rightTempTextPath = ''                                             # String used to store temp text file path for resizing right image in GUI
+        self.configFilePath = os.path.join(ROOT_DIR, 'configuration.txt')       # String used to store path for PIM's configuration file (GUI defaults)
 
         self.enableDeletion = 0                                                 # Flag used to indicate whether the most recently created point can be deleted with Backspace
         self.triangleUpdate = 0                                                 # Flag used to indicate whether triangles need to be repainted (or removed) in the next paint event
@@ -194,39 +193,40 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.moveMode = False                                                   # Flag used to indicate whether the user is currently attempting to move specific points via GUI
 
         self.blendedImage = None                                                # Pre-made reference to a variable that is used to store a singular blended image
-        self.threadQueue = queue.Queue()
-        self.imager = ImagerThread()
-        self.framer = FrameThread(self.threadQueue)
-        self.framer.frame_complete.connect(self.frameFinished)
-        self.framer.update_progress.connect(self.updateProgress)
+        self.threadQueue = queue.Queue()                                        # Constructed queue of all image frames and their RGB[A] layers to be morphed when user starts a full blend. Aids in performance as well as preventing GUI lockup.
+        self.imager = ImagerThread()                                            # Object for handling asynchronous execution of blends for the layers of a single-frame blend
+        self.framer = FrameThread(self.threadQueue)                             # Object for handling asynchronous execution of blends for the layers of a multiple-frame blend (full blend)
+        self.framer.frame_complete.connect(self.frameFinished)                  # Method signal definition to handle and render GUI updates as image frames are blended
+        self.framer.update_progress.connect(self.updateProgress)                # Method signal definition to handle and render GUI updates as image frames are blended
 
         # Logic
-        self.loadStartButton.clicked.connect(self.loadDataLeft)                         # When the first  load image button is clicked, begins loading logic
-        self.loadEndButton.clicked.connect(self.loadDataRight)                          # When the second load image button is clicked, begins loading logic
-        self.resizeLeftButton.clicked.connect(self.resizeLeft)                          # When the left resize button is clicked, begins resizing logic
-        self.resizeRightButton.clicked.connect(self.resizeRight)                        # When the right resize button is clicked, begins resizing logic
-        self.triangleBox.clicked.connect(self.updateTriangleStatus)                     # When the triangle box is clicked, changes flags
-        self.comboBox.currentIndexChanged.connect(self.updateTriangleFields)            # When the RGB data type is changed, update fields accordingly
-        self.transparencyBox.stateChanged.connect(self.transparencyUpdate)              # When the transparency box is checked or unchecked, changes flags
-        self.blendButton.clicked.connect(self.blendImages)                              # When the blend button is clicked, begins blending logic
-        self.blendBox.stateChanged.connect(self.blendBoxUpdate)                         # When the blend box is checked or unchecked, changes flags
-        self.blendText.returnPressed.connect(self.blendTextDone)                        # When the return key is pressed, removes focus from the input text window
-        self.saveButton.clicked.connect(self.saveImages)                                # When the save button is clicked, begins image saving logic
-        self.gifText.returnPressed.connect(self.gifTextDone)                            # When the return key is pressed, removes focus from the input text window
-        self.triangleRedValue.returnPressed.connect(self.triangleRedValueDone)          # When the user attempts to confirm a new Red   value, validate it
-        self.triangleGreenValue.returnPressed.connect(self.triangleGreenValueDone)      # When the user attempts to confirm a new Green value, validate it
-        self.triangleBlueValue.returnPressed.connect(self.triangleBlueValueDone)        # When the user attempts to confirm a new Blue  value, validate it
-        self.alphaSlider.valueChanged.connect(self.updateAlpha)                         # When the alpha slider is moved, reads and formats the value
-        self.triangleRedSlider.valueChanged.connect(self.updateRed)                     # When the red   slider is moved, reads the value
-        self.triangleGreenSlider.valueChanged.connect(self.updateGreen)                 # When the green slider is moved, reads the value
-        self.triangleBlueSlider.valueChanged.connect(self.updateBlue)                   # When the blue  slider is moved, reads the value
-        self.resetPointsButton.clicked.connect(self.resetPoints)                        # When the reset points button is clicked, begins logic for removing points
-        self.resetSliderButton.clicked.connect(self.resetAlphaSlider)                   # When the reset slider button is clicked, begins logic for resetting it to default
-        self.autoCornerButton.clicked.connect(self.autoCorner)                          # When the add   corner button is clicked, begins logic for adding corner points
+        self.loadStartButton.clicked.connect(self.loadDataLeft)                                                                                             # When the first  load image button is clicked, begins loading logic
+        self.loadEndButton.clicked.connect(self.loadDataRight)                                                                                              # When the second load image button is clicked, begins loading logic
+        self.resizeLeftButton.clicked.connect(self.resizeLeft)                                                                                              # When the left resize button is clicked, begins resizing logic
+        self.resizeRightButton.clicked.connect(self.resizeRight)                                                                                            # When the right resize button is clicked, begins resizing logic
+        self.triangleBox.clicked.connect(self.updateTriangleStatus)                                                                                         # When the triangle box is clicked, changes flags
+        self.comboBox.currentIndexChanged.connect(self.updateTriangleFields)                                                                                # When the RGB data type is changed, update fields accordingly
+        self.transparencyBox.stateChanged.connect(self.transparencyUpdate)                                                                                  # When the transparency box is checked or unchecked, changes flags
+        self.blendButton.clicked.connect(self.blendImages)                                                                                                  # When the blend button is clicked, begins blending logic
+        self.blendBox.stateChanged.connect(self.blendBoxUpdate)                                                                                             # When the blend box is checked or unchecked, changes flags
+        self.blendText.returnPressed.connect(self.blendTextDone)                                                                                            # When the return key is pressed, removes focus from the input text window
+        self.saveButton.clicked.connect(self.saveImages)                                                                                                    # When the save button is clicked, begins image saving logic
+        self.gifText.returnPressed.connect(self.gifTextDone)                                                                                                # When the return key is pressed, removes focus from the input text window
+        self.triangleRedValue.returnPressed.connect(lambda: self.verifyValue('red'))                                                                        # When the user attempts to confirm a new Red   value, validate it
+        self.triangleGreenValue.returnPressed.connect(lambda: self.verifyValue('green'))                                                                    # When the user attempts to confirm a new Green value, validate it
+        self.triangleBlueValue.returnPressed.connect(lambda: self.verifyValue('blue'))                                                                      # When the user attempts to confirm a new Blue  value, validate it
+        self.alphaSlider.valueChanged.connect(self.updateAlpha)                                                                                             # When the alpha slider is moved, reads and formats the value
+        self.triangleRedSlider.valueChanged.connect(lambda: self.updateColorSlider(self.triangleRedSlider, self.triangleRedValue))                          # When the red   slider is moved, reads the value
+        self.triangleGreenSlider.valueChanged.connect(lambda: self.updateColorSlider(self.triangleGreenSlider, self.triangleGreenValue))                    # When the green slider is moved, reads the value
+        self.triangleBlueSlider.valueChanged.connect(lambda: self.updateColorSlider(self.triangleBlueSlider, self.triangleBlueValue))                       # When the blue  slider is moved, reads the value
+        self.resetPointsButton.clicked.connect(self.resetPoints)                                                                                            # When the reset points button is clicked, begins logic for removing points
+        self.resetSliderButton.clicked.connect(self.resetAlphaSlider)                                                                                       # When the reset slider button is clicked, begins logic for resetting it to default
+        self.autoCornerButton.clicked.connect(self.autoCorner)                                                                                              # When the add   corner button is clicked, begins logic for adding corner points
 
+        # self.loadConfiguration()
         self.checkUpdate()
 
-    # Simple function for checking whether you are up to date. :)
+    # Simple function for checking whether you are up-to-date. :)
     def checkUpdate(self):
         resp = requests.get('https://api.github.com/repos/ddowd97/Python-Image-Morpher/releases/latest')
 
@@ -261,6 +261,26 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         except FileNotFoundError:
             print('Cannot obtain installed version number. Is version.txt missing?')
 
+    # TODO
+    # Function executed on startup that either generates or loads (and corrects, if needed) configuration.txt to store default parameters
+    def loadConfiguration(self):
+        configVars = {'ImagePath': os.path.join(ROOT_DIR, 'Images_Points')}
+        if not os.path.exists(self.configFilePath):
+            with open(self.configFilePath, 'w') as file:
+                for x in configVars:
+                    file.write("{:>8}='{:>8}'".format(x, configVars[x]))
+            self.configImagePathString.setText(configVars['ImagePath'])
+
+    # TODO
+    # Function that validates and saves new configuration parameters set by the user in PIM's GUI
+    def saveConfiguration(self):
+        ...
+
+    # TODO
+    # Function that resets configuration parameters to default values
+    def resetConfiguration(self):
+        ...
+
     def eventFilter(self, source, event):
         if event.type() == QtCore.QEvent.MouseButtonPress:
             if source == self.triangleRedValue:
@@ -276,14 +296,9 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 self.triangleBlueValue.setCursorPosition(0)
                 return True
         if event.type() == QtCore.QEvent.FocusOut:
-            if source == self.triangleRedValue:
-                # mockEvent = QtGui.QKeyEvent(QtCore.QEvent.KeyPress, QtCore.Qt.Key_Return, QtCore.Qt.NoModifier)
-                # QtCore.QCoreApplication.postEvent(self, mockEvent)
-                self.triangleRedValueDone()
-            elif source == self.triangleGreenValue:
-                self.triangleGreenValueDone()
-            elif source == self.triangleBlueValue:
-                self.triangleBlueValueDone()
+            if source == self.triangleRedValue:     self.verifyValue('red')
+            elif source == self.triangleGreenValue: self.verifyValue('green')
+            elif source == self.triangleBlueValue:  self.verifyValue('blue')
         return super().eventFilter(source, event)
 
     def imageFinished(self, blendList):
@@ -390,15 +405,6 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         else:
             self.verifyValue("gif")
         self.notificationLine.setFocus()
-
-    def triangleRedValueDone(self):
-        self.verifyValue('red')
-
-    def triangleGreenValueDone(self):
-        self.verifyValue('green')
-
-    def triangleBlueValueDone(self):
-        self.verifyValue('blue')
 
     # Macro function to save unnecessary repetitions of the same few lines of code.
     # Essentially corrects invalid values that the user may enter for full blending and gif frame times..
@@ -1575,25 +1581,11 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 print("Generic catching error: Something went wrong when loading the image.")
 
     # Red/Green/Blue slider functions for the triangle widget in order to select custom colors
-    def updateRed(self):
-        if self.comboBox.currentText() == 'Decimal': value = str(self.triangleRedSlider.value()).zfill(3)
-        elif self.comboBox.currentText() == 'Binary': value = str(bin(self.triangleRedSlider.value())[2:].zfill(8))
-        elif self.comboBox.currentText() == 'Hexadecimal': value = str('0x' + hex(self.triangleRedSlider.value())[2:].zfill(2).upper())
-        self.triangleRedValue.setText(value)
-        self.refreshPaint()
-
-    def updateGreen(self):
-        if self.comboBox.currentText() == 'Decimal': value = str(self.triangleGreenSlider.value()).zfill(3)
-        elif self.comboBox.currentText() == 'Binary': value = str(bin(self.triangleGreenSlider.value())[2:].zfill(8))
-        elif self.comboBox.currentText() == 'Hexadecimal': value = str('0x' + hex(self.triangleGreenSlider.value())[2:].zfill(2).upper())
-        self.triangleGreenValue.setText(value)
-        self.refreshPaint()
-
-    def updateBlue(self):
-        if self.comboBox.currentText() == 'Decimal': value = str(self.triangleBlueSlider.value()).zfill(3)
-        elif self.comboBox.currentText() == 'Binary': value = str(bin(self.triangleBlueSlider.value())[2:].zfill(8))
-        elif self.comboBox.currentText() == 'Hexadecimal': value = str('0x' + hex(self.triangleBlueSlider.value())[2:].zfill(2).upper())
-        self.triangleBlueValue.setText(value)
+    def updateColorSlider(self, colorSlider, colorValue):
+        if self.comboBox.currentText() == 'Decimal': value = str(colorSlider.value()).zfill(3)
+        elif self.comboBox.currentText() == 'Binary': value = str(bin(colorSlider.value())[2:].zfill(8))
+        elif self.comboBox.currentText() == 'Hexadecimal': value = str('0x' + hex(colorSlider.value())[2:].zfill(2).upper())
+        colorValue.setText(value)
         self.refreshPaint()
 
     # Function that handles behavior when the user wishes to blend the two calibrated images.
@@ -1738,7 +1730,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.triangleBox.setChecked(0)
         self.triangleBox.setEnabled(0)
         if fromDrag is False:
-            self.startingImagePath, _ = QFileDialog.getOpenFileName(self, caption='Open Starting Image File ...', filter="Images (*.png *.jpg *.jpeg)")
+            self.startingImagePath, _ = QFileDialog.getOpenFileName(self, caption='Open Starting Image File ...', directory=os.path.join(ROOT_DIR, 'Images_Points'), filter="Images (*.png *.jpg *.jpeg)")
         if not self.startingImagePath:
             self.leftTempPath = ''
             self.leftTempTextPath = ''
@@ -1791,12 +1783,11 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.triangleBox.setChecked(0)
         self.triangleBox.setEnabled(0)
         if fromDrag is False:
-            self.endingImagePath, _ = QFileDialog.getOpenFileName(self, caption='Open Ending Image File ...', filter="Images (*.png *.jpg *.jpeg)")
+            self.endingImagePath, _ = QFileDialog.getOpenFileName(self, caption='Open Ending Image File ...', directory=os.path.join(ROOT_DIR, 'Images_Points'), filter="Images (*.png *.jpg *.jpeg)")
         if not self.endingImagePath:
             self.rightTempPath = ''
             self.rightTempTextPath = ''
             self.endingImage.setScaledContents(0)
-
             return
 
         self.notificationLine.setText(" Right image loaded.")

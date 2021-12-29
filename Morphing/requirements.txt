@@ -4,4 +4,4 @@ numpy
 imageio
 pynput
 opencv-python
-beautifulsoup4
+requests

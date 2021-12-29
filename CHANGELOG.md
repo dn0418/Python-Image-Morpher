@@ -1,3 +1,23 @@
+# Version 2.0.2 - (2021-12-29)
+### This update includes dependency changes - Please run the command "pip install -r requirements.txt" or equivalent after downloading.
+
+## Added
+- <b>Configuration Tab (Work in Progress)</b>
+  - Initial GUI implementation for saving, loading, and handling default parameters requested by the user, such as default image search path
+  - All widgets are currently disabled and will be enabled in a future update when ready
+    - Comment: <i>Releasing the current implementation for this tab as-is in hopes of receiving feedback on the interface before full release.</i>
+## Changes
+- Image loading methods <b>loadDataLeft()</b> and <b>loadDataRight()</b> now default to the Images_Points folder when the user is prompted to select an image
+  - This will be configurable when the Configuration tab is fully implemented and released
+- Code cleanup: Merged and removed duplicate methods for various GUI tasks to reduce unnecessary bloat - more planned in the future
+  - <b>updateRed()</b> / <b>updateGreen()</b> / <b>updateBlue()</b> → <b>updateColorSlider</b>
+  - <b>triangleRedValueDone()</b> / <b>triangleGreenValueDone()</b> / <b>triangleBlueValueDone()</b> → Removed in favor of directly calling <b>verifyValue</b>
+- Rewrote <b>checkUpdate()</b> to instead parse api.github.com as well as silently terminate on exception or failure
+- Modified requirements.txt: 
+  - Added Requests - missing from 2.0 release, required for <b>checkUpdate()</b>
+  - Removed BeautifulSoup - no longer needed due to <b>checkUpdate()</b> changes
+- Miscellaneous: Updated comments for initialized GUI variables and signal connections
+
 # Version 2.0.1 - (2021-08-15)
 ## Fixes
 - Resolved crash when the total point pair count was brought below three through Delete Mode
