@@ -38,7 +38,7 @@ Alternatively, for each module below that your machine does not have installed, 
 
 <b>Pynput</b> - ```pip install pynput```
 
-<b>OpenCV</b> - ```pip install opencv-python```
+<b>OpenCV (Headless)</b> - ```pip install opencv-python-headless```
 
 <b>Requests</b> - ```pip install requests```
 
