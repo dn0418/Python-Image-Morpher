@@ -126,8 +126,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
         super(MorphingApp, self).__init__(parent)
         self.setupUi(self)
-        self.progressBar.setVisible(False)
+        # self.progressBar.setVisible(False)
+        self.progressBar.setFixedWidth(0)
         self.setWindowIcon(QtGui.QIcon("./Morphing.ico"))
+        self.saveTab_folderDisplayText.setText(ROOT_DIR)
         self.setAcceptDrops(True)
         self.triangleRedValue.installEventFilter(self)
         self.triangleGreenValue.installEventFilter(self)
@@ -210,25 +212,40 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.blendButton.clicked.connect(self.blendImages)                                                                                                  # When the blend button is clicked, begins blending logic
         self.blendBox.stateChanged.connect(self.blendBoxUpdate)                                                                                             # When the blend box is checked or unchecked, changes flags
         self.blendText.returnPressed.connect(self.blendTextDone)                                                                                            # When the return key is pressed, removes focus from the input text window
-        self.saveButton.clicked.connect(self.saveImages)                                                                                                    # When the save button is clicked, begins image saving logic
+        self.saveButton.clicked.connect(self.saveMorph)                                                                                                     # When the save button is clicked, begins image saving logic
         self.gifText.returnPressed.connect(self.gifTextDone)                                                                                                # When the return key is pressed, removes focus from the input text window
         self.triangleRedValue.returnPressed.connect(lambda: self.verifyValue('red'))                                                                        # When the user attempts to confirm a new Red   value, validate it
         self.triangleGreenValue.returnPressed.connect(lambda: self.verifyValue('green'))                                                                    # When the user attempts to confirm a new Green value, validate it
         self.triangleBlueValue.returnPressed.connect(lambda: self.verifyValue('blue'))                                                                      # When the user attempts to confirm a new Blue  value, validate it
         self.alphaSlider.valueChanged.connect(self.updateAlpha)                                                                                             # When the alpha slider is moved, reads and formats the value
+        self.saveTab_gifQualitySlider.valueChanged.connect(self.updateGifQuality)                                                                           # When the gif   slider is moved, writes the value into indicator
         self.triangleRedSlider.valueChanged.connect(lambda: self.updateColorSlider(self.triangleRedSlider, self.triangleRedValue))                          # When the red   slider is moved, reads the value
         self.triangleGreenSlider.valueChanged.connect(lambda: self.updateColorSlider(self.triangleGreenSlider, self.triangleGreenValue))                    # When the green slider is moved, reads the value
         self.triangleBlueSlider.valueChanged.connect(lambda: self.updateColorSlider(self.triangleBlueSlider, self.triangleBlueValue))                       # When the blue  slider is moved, reads the value
         self.resetPointsButton.clicked.connect(self.resetPoints)                                                                                            # When the reset points button is clicked, begins logic for removing points
         self.resetSliderButton.clicked.connect(self.resetAlphaSlider)                                                                                       # When the reset slider button is clicked, begins logic for resetting it to default
         self.autoCornerButton.clicked.connect(self.autoCorner)                                                                                              # When the add   corner button is clicked, begins logic for adding corner points
+        self.saveTab_singleRadio.clicked.connect(self.updateSaveTab)
+        self.saveTab_multiRadio.clicked.connect(self.updateSaveTab)
+        self.saveTab_frameRadio.clicked.connect(self.updateSaveTab)
+        self.saveTab_gifRadio.clicked.connect(self.updateSaveTab)
+        self.saveTab_jpgRadio.clicked.connect(self.updateSaveTab)
+        self.saveTab_pngRadio.clicked.connect(self.updateSaveTab)
+        self.saveTab_folderSelectButton.clicked.connect(self.selectSaveFolder)
 
         # self.loadConfiguration()
         self.checkUpdate()
 
     # Simple function for checking whether you are up-to-date. :)
     def checkUpdate(self):
-        resp = requests.get('https://api.github.com/repos/ddowd97/Python-Image-Morpher/releases/latest')
+        try:
+            resp = requests.get('https://api.github.com/repos/ddowd97/Python-Image-Morpher/releases/latest')
+        except requests.exceptions.ConnectionError:
+            print('Connection to GitHub API failed due to network connectivity.\nSkipping update check...')
+            return
+        except:
+            print('Failed to check for updates.')
+            return
 
         try:
             with open('version.txt', 'r') as file:
@@ -260,6 +277,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 return
         except FileNotFoundError:
             print('Cannot obtain installed version number. Is version.txt missing?')
+        except UnboundLocalError:
+            print('Cannot obtain online version number due to network connectivity issue.')
+        except:
+            print('There was an error while checking for updates.')
 
     # TODO
     # Function executed on startup that either generates or loads (and corrects, if needed) configuration.txt to store default parameters
@@ -304,7 +325,8 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
     def imageFinished(self, blendList):
         global start_time
         if len(blendList) == 1:
-            self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(blendList[0].data, blendList[0].shape[1], blendList[0].shape[0], QtGui.QImage.Format_Grayscale8)))
+            self.blendedImage = blendList[0]
+            self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], QtGui.QImage.Format_Grayscale8)))
             self.notificationLine.setText(" Morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
         elif len(blendList) == 3:
             self.blendedImage = np.dstack((blendList[0], blendList[1], blendList[2]))
@@ -315,6 +337,7 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(self.blendedImage.data, self.blendedImage.shape[1], self.blendedImage.shape[0], QtGui.QImage.Format_RGBA8888)))
             self.notificationLine.setText(" RGBA morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
         self.updateMorphingWidget(True)
+        self.updateSaveTab()
         self.setFocus()
 
     def frameFinished(self, blendList):
@@ -353,13 +376,37 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 self.blendingImage.setPixmap(QtGui.QPixmap.fromImage(QtGui.QImage(temp.data, temp.shape[1], temp.shape[0], QtGui.QImage.Format_RGBA8888)))
                 self.notificationLine.setText(" RGBA morph took " + "{:.3f}".format(time.time() - start_time) + " seconds.\n")
             self.updateMorphingWidget(True)
-            self.progressBar.setVisible(False)
             self.fullBlendComplete = True
+            self.updateSaveTab()
+            self.animateProgressBar()
         self.setFocus()
 
-    # Simple method for updating the progress bar during full blends
+    # Animation for updates of the progress bar during full blends
     def updateProgress(self):
-        self.progressBar.setValue(self.progressBar.value() + round(1 / (1 / self.fullBlendValue + 1) * 100))
+        if self.fullBlendComplete is not True:
+            self.animationProgress = QtCore.QPropertyAnimation(self.progressBar, b"value")
+            self.animationProgress.setDuration(125)
+            self.animationProgress.setStartValue(self.progressBar.value())
+            self.animationProgress.setEndValue(self.progressBar.value() + round(1 / (1 / self.fullBlendValue + 1) * 100))
+            self.animationProgress.setEasingCurve(QtCore.QEasingCurve.InOutQuart)
+            self.animationProgress.start()
+
+    # Animation for showing and hiding the progress bar during full blends
+    def animateProgressBar(self):
+        if self.progressBar.minimumWidth() == 0:
+            self.animationGrow = QtCore.QPropertyAnimation(self.progressBar, b"minimumWidth")
+            self.animationGrow.setDuration(350)
+            self.animationGrow.setStartValue(self.progressBar.minimumWidth())
+            self.animationGrow.setEndValue(self.tabWidget.width() + 2)
+            self.animationGrow.setEasingCurve(QtCore.QEasingCurve.InOutQuart)
+            self.animationGrow.start()
+        else:
+            self.animationShrink = QtCore.QPropertyAnimation(self.progressBar, b"minimumWidth")
+            self.animationShrink.setDuration(350)
+            self.animationShrink.setStartValue(self.progressBar.minimumWidth())
+            self.animationShrink.setEndValue(0)
+            self.animationShrink.setEasingCurve(QtCore.QEasingCurve.InOutQuart)
+            self.animationShrink.start()
 
     # Function override for when the program is closed.
     # Ensures that the asynchronous resize event observer terminates and removes any temporary files generated.
@@ -604,6 +651,53 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         self.transparencyBox.setEnabled(val)
         self.alphaValue.setEnabled(val)
         self.gifText.setEnabled(val and len(self.blendList))
+
+    # Macro function to save unnecessary repetitions of the same few lines of code.
+    # Handles dynamic GUI behavior of save tab with respect to morphing and user input
+    def updateSaveTab(self):
+        isOutput = self.blendingImage.hasScaledContents()
+        self.saveTab_outputFormatGroup.setEnabled(isOutput)
+        self.saveTab_fileSettingsGroup.setEnabled(isOutput)
+        # self.saveTab_fileEstimateLabel.setEnabled(isOutput)
+        # self.saveTab_filenameText.setEnabled(isOutput)
+        self.saveTab_folderDisplayText.setEnabled(isOutput)
+        self.saveTab_folderSelectButton.setEnabled(isOutput)
+        self.saveButton.setEnabled(isOutput)
+        self.saveTab_multiRadio.setEnabled(isOutput and self.saveTab_outputFormatGroup.isEnabled() and self.fullBlendComplete)
+        self.saveTab_fullBlendGroup.setEnabled(isOutput and self.saveTab_outputFormatGroup.isEnabled() and self.fullBlendComplete and self.saveTab_multiRadio.isChecked())
+        self.saveTab_gifSettingsGroup.setEnabled(isOutput and self.saveTab_fullBlendGroup.isEnabled() and self.fullBlendComplete and self.saveTab_gifRadio.isChecked())
+        self.gifText.setEnabled(isOutput and self.saveTab_fullBlendGroup.isEnabled() and self.fullBlendComplete and self.saveTab_gifRadio.isChecked())
+        self.saveTab_checkBoxGroup.setEnabled(isOutput and self.saveTab_fullBlendGroup.isEnabled() and self.fullBlendComplete and self.saveTab_gifRadio.isChecked())
+        self.saveTab_loopBox.setEnabled(isOutput and self.saveTab_fullBlendGroup.isEnabled() and self.fullBlendComplete and self.saveTab_gifRadio.isChecked())
+        self.saveTab_reverseBox.setEnabled(isOutput and self.saveTab_fullBlendGroup.isEnabled() and self.fullBlendComplete and self.saveTab_gifRadio.isChecked())
+        self.saveTab_rewindBox.setEnabled(isOutput and self.saveTab_fullBlendGroup.isEnabled() and self.fullBlendComplete and self.saveTab_gifRadio.isChecked())
+        self.saveTab_gifIntervalLabel.setEnabled(isOutput and self.saveTab_fullBlendGroup.isEnabled() and self.fullBlendComplete and self.saveTab_gifRadio.isChecked())
+        self.saveTab_gifQualityBox.setEnabled(isOutput and self.saveTab_fullBlendGroup.isEnabled() and self.fullBlendComplete and self.saveTab_gifRadio.isChecked())
+        self.saveTab_gifQualityLabel.setEnabled(isOutput and self.saveTab_fullBlendGroup.isEnabled() and self.fullBlendComplete and self.saveTab_gifRadio.isChecked())
+        self.saveTab_gifQualitySlider.setEnabled(isOutput and self.saveTab_fullBlendGroup.isEnabled() and self.fullBlendComplete and self.saveTab_gifRadio.isChecked())
+        self.saveTab_singleRadio.setChecked(self.saveTab_multiRadio.isChecked() and not self.saveTab_fullBlendGroup.isEnabled())
+        self.saveTab_imageExtensionGroup.setEnabled(isOutput and (self.saveTab_singleRadio.isChecked() or (self.saveTab_multiRadio.isChecked() and self.saveTab_frameRadio.isChecked())))
+        # self.updateSaveEstimate()
+
+    ''' Scrapping this idea for now due to feature creep slowing down development
+    # Calculates the expected file size of current blend output (with defined parameters from user), if saved
+    def updateSaveEstimate(self):
+        val = '0.00'
+        if self.blendingImage.hasScaledContents():
+            if self.saveTab_singleRadio.isChecked() and self.saveTab_jpgRadio.isChecked():
+                if self.fullBlendComplete:
+                    temp = self.blendList[round(((self.alphaSlider.value() / self.alphaSlider.maximum()) / self.fullBlendValue) * self.fullBlendValue / self.fullBlendValue)]
+                    val = format((temp.shape[0] * temp.shape[1] * temp.shape[2]) / (1048576 * 12), ".2f")
+                else:
+                    val = format((self.blendedImage.shape[0] * self.blendedImage.shape[1] * self.blendedImage.shape[2]) / (1048576 * 12), ".2f")
+            elif self.saveTab_singleRadio.isChecked() and self.saveTab_pngRadio.isChecked():
+                if self.fullBlendComplete:
+                    temp = self.blendList[round(((self.alphaSlider.value() / self.alphaSlider.maximum()) / self.fullBlendValue) * self.fullBlendValue / self.fullBlendValue)]
+                    val = format((temp.shape[0] * temp.shape[1] * temp.shape[2]) / (1048576 * 1.8), ".2f")
+                else:
+                    val = format((self.blendedImage.shape[0] * self.blendedImage.shape[1] * self.blendedImage.shape[2]) / (1048576 * 1.8), ".2f")
+        self.saveTab_fileEstimateLabel.setText('<b>Estimate:</b> ' + val + ' MB')
+    '''
 
     # Self-contained function that checks for the existence of corner points and adds any that are not already present.
     # Can not be invoked while a point is pending (in order to prevent exploits).
@@ -891,12 +985,14 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 QApplication.restoreOverrideCursor()
                 QApplication.setOverrideCursor(QtCore.Qt.CursorShape.ArrowCursor)
                 QApplication.restoreOverrideCursor()
+                self.cursorModeLine.setStyleSheet("background : lightgreen;")
                 self.setMouseTracking(False)
                 self.notificationLine.setText(" Delete Mode: Disabled")
             else:
                 self.deleteMode = True
                 QApplication.restoreOverrideCursor()
                 QApplication.setOverrideCursor(QtCore.Qt.CursorShape.CrossCursor)
+                self.cursorModeLine.setStyleSheet("background : red;")
                 self.setMouseTracking(True)
                 if self.moveMode:
                     self.moveMode = False
@@ -910,12 +1006,14 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
                 QApplication.restoreOverrideCursor()
                 QApplication.setOverrideCursor(QtCore.Qt.CursorShape.ArrowCursor)
                 QApplication.restoreOverrideCursor()
+                self.cursorModeLine.setStyleSheet("background : lightgreen;")
                 self.setMouseTracking(False)
                 self.notificationLine.setText(" Move Mode: Disabled")
             else:
                 self.moveMode = True
                 QApplication.restoreOverrideCursor()
                 QApplication.setOverrideCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+                self.cursorModeLine.setStyleSheet("background : lightblue;")
                 self.setMouseTracking(True)
                 if self.deleteMode:
                     self.deleteMode = False
@@ -1580,6 +1678,10 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             else:
                 print("Generic catching error: Something went wrong when loading the image.")
 
+    # Function that handles movement of the quality slider
+    def updateGifQuality(self):
+        self.saveTab_gifQualityBox.setText(str(self.saveTab_gifQualitySlider.value()) + '%')
+
     # Red/Green/Blue slider functions for the triangle widget in order to select custom colors
     def updateColorSlider(self, colorSlider, colorValue):
         if self.comboBox.currentText() == 'Decimal': value = str(colorSlider.value()).zfill(3)
@@ -1597,8 +1699,8 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         global grayScale, colorScaleR, colorScaleG, colorScaleB, colorScaleA, alphaValue, start_time
         self.updateMorphingWidget(False)
         triangleTuple = loadTriangles(self.startingTextCorePath, self.endingTextCorePath)
-        leftImageRaw = imageio.imread(self.startingImagePath)
-        rightImageRaw = imageio.imread(self.endingImagePath)
+        leftImageRaw = cv2.imread(self.startingImagePath)
+        rightImageRaw = cv2.imread(self.endingImagePath)
         leftImageARR = np.asarray(leftImageRaw)
         rightImageARR = np.asarray(rightImageRaw)
         self.progressBar.setValue(0)
@@ -1620,57 +1722,57 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.notificationLine.setText(" Calculating grayscale morph...")
             grayScale = Morpher(leftImageARR, triangleTuple[0], rightImageARR, triangleTuple[1])
             alphaValue = float(self.alphaValue.text())
+            self.fullBlendComplete = False
             self.blendList.clear()
             start_time = time.time()
             if self.blendBox.isChecked():
-                self.progressBar.setVisible(True)
+                self.animateProgressBar()
                 self.verifyValue("blend")
                 for x in range(0, math.ceil(1 / self.fullBlendValue) + 1, 1):
                     x *= self.fullBlendValue
                     self.threadQueue.put(x)
                 self.framer.start()
             else:
-                self.fullBlendComplete = False
                 self.gifText.setEnabled(0)
                 self.imager.start()
                 self.imager.image_complete.connect(self.imageFinished)
         elif not self.transparencyBox.isChecked() or (leftImageRaw.shape[2] == rightImageRaw.shape[2] == 3):  # if color, no alpha (.JPG)
             self.notificationLine.setText(" Calculating RGB (.jpg) morph...")
+            self.fullBlendComplete = False
             self.blendList.clear()
-            colorScaleR = Morpher(leftImageARR[:, :, 0], triangleTuple[0], rightImageARR[:, :, 0], triangleTuple[1])
+            colorScaleB = Morpher(leftImageARR[:, :, 0], triangleTuple[0], rightImageARR[:, :, 0], triangleTuple[1])
             colorScaleG = Morpher(leftImageARR[:, :, 1], triangleTuple[0], rightImageARR[:, :, 1], triangleTuple[1])
-            colorScaleB = Morpher(leftImageARR[:, :, 2], triangleTuple[0], rightImageARR[:, :, 2], triangleTuple[1])
+            colorScaleR = Morpher(leftImageARR[:, :, 2], triangleTuple[0], rightImageARR[:, :, 2], triangleTuple[1])
             alphaValue = float(self.alphaValue.text())
             start_time = time.time()
             if self.blendBox.isChecked():
-                self.progressBar.setVisible(True)
+                self.animateProgressBar()
                 for x in range(0, math.ceil(1 / self.fullBlendValue) + 1, 1):
                     x *= self.fullBlendValue
                     self.threadQueue.put(x)
                 self.framer.start()
             else:
-                self.fullBlendComplete = False
                 self.gifText.setEnabled(0)
                 self.imager.start()
                 self.imager.image_complete.connect(self.imageFinished)
         elif self.transparencyBox.isChecked() and leftImageRaw.shape[2] == rightImageRaw.shape[2] == 4:   # if color, alpha (.PNG)
             self.notificationLine.setText(" Calculating RGBA (.png) morph...")
             QtCore.QCoreApplication.processEvents()
-            colorScaleR = Morpher(leftImageARR[:, :, 0], triangleTuple[0], rightImageARR[:, :, 0], triangleTuple[1])
+            colorScaleB = Morpher(leftImageARR[:, :, 0], triangleTuple[0], rightImageARR[:, :, 0], triangleTuple[1])
             colorScaleG = Morpher(leftImageARR[:, :, 1], triangleTuple[0], rightImageARR[:, :, 1], triangleTuple[1])
-            colorScaleB = Morpher(leftImageARR[:, :, 2], triangleTuple[0], rightImageARR[:, :, 2], triangleTuple[1])
+            colorScaleR = Morpher(leftImageARR[:, :, 2], triangleTuple[0], rightImageARR[:, :, 2], triangleTuple[1])
             colorScaleA = Morpher(leftImageARR[:, :, 3], triangleTuple[0], rightImageARR[:, :, 3], triangleTuple[1])
             alphaValue = float(self.alphaValue.text())
+            self.fullBlendComplete = False
             self.blendList.clear()
             start_time = time.time()
             if self.blendBox.isChecked():
-                self.progressBar.setVisible(True)
+                self.animateProgressBar()
                 for x in range(0, math.ceil(1 / self.fullBlendValue) + 1, 1):
                     x *= self.fullBlendValue
                     self.threadQueue.put(x)
                 self.framer.start()
             else:
-                self.fullBlendComplete = False
                 self.gifText.setEnabled(0)
                 self.imager.start()
                 self.imager.image_complete.connect(self.imageFinished)
@@ -1680,41 +1782,96 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
             self.blendingImage.setScaledContents(1)
         else:
             self.updateMorphingWidget(True)
-            self.progressBar.setVisible(False)
 
-    # Function that handles behavior when the user wishes to save the blended image(s)
+    def selectSaveFolder(self):
+        filepath = QFileDialog.getExistingDirectory(self, 'Save morph to ...')
+
+        if filepath != '':
+            self.saveTab_folderDisplayText.setText(os.path.abspath(filepath))
+        else:
+            self.saveTab_folderDisplayText.setText(ROOT_DIR)
+
+    # Function that handles behavior when the user wishes to save the rendered morph
     # Currently designed to handle generation of the following:
     #     Single Blend → Grayscale .jpg/.jpeg
     #     Single Blend → Color     .jpg/.jpeg/.png
     #     Full Blend → Grayscale/Color .gif (default frame time: 100 ms)
-    def saveImages(self):
+    def saveMorph(self):
         if self.blendingImage.hasScaledContents():
-            filepath = ""
-            if self.fullBlendComplete and self.blendList != []:  # create GIF
+            # GIF
+            if self.saveTab_multiRadio.isChecked() and self.saveTab_gifRadio.isChecked() and self.blendList != []:
                 self.gifTextDone()
                 filepath, _ = QFileDialog.getSaveFileName(self, 'Save the gif as ...', "Morph.gif", "Images (*.gif)")
-
                 if filepath == "":
                     return
 
-                temp = self.blendList
-                for frame in reversed(self.blendList):
-                    temp.append(frame)
-                imageio.mimsave(filepath, temp, duration=float(self.gifValue / 1000))
-            else:  # create image
-                if len(self.blendedImage.shape) < 3:
-                    filepath, _ = QFileDialog.getSaveFileName(self, 'Save the image as ...', "Morph.jpg", "Images (*.jpg)")
-                elif self.blendedImage.shape[2] == 3:
-                    filepath, _ = QFileDialog.getSaveFileName(self, 'Save the image as ...', "Morph.jpg", "Images (*.jpg)")
-                elif self.blendedImage.shape[2] == 4:
-                    filepath, _ = QFileDialog.getSaveFileName(self, 'Save the image as ...', "Morph.png", "Images (*.png)")
+                temp = copy.deepcopy(self.blendList)
+                #temp = []
+                scalar = int(self.saveTab_gifQualityBox.text()[:-1]) / 100
+                #for x in temp1:
+                #    temp.append(cv2.resize(x, (x.width() * scalar, x.height() * scalar), interpolation=cv2.INTER_AREA))
 
-                if filepath == "":
+                if self.saveTab_reverseBox.isChecked():
+                    temp = list(reversed(temp))
+
+                if self.saveTab_rewindBox.isChecked():
+                    temp += list(reversed(temp))
+
+                imageio.mimsave(filepath, temp, duration=float(self.gifValue / 1000), loop=int(not self.saveTab_loopBox.isChecked()))
+
+                self.notificationLine.setText(" Full blend successfully saved as .gif")
+                if os.path.exists(filepath):
+                    self.notificationLine.setText(" Full blend successfully saved as .gif")
+                else:
+                    self.notificationLine.setText(" Generic Catching Error: Full blend can't be saved as .gif..")
+            # Image(s)
+            else:
+                if self.saveTab_pngRadio.isChecked():
+                    imageformat = cv2.COLOR_RGBA2BGRA
+                    savePath, _ = QFileDialog.getSaveFileName(self, 'Save the image as ...', "Morph.png", "Images (*.png)")
+                else:
+                    imageformat = cv2.COLOR_RGB2BGR
+                    savePath, _ = QFileDialog.getSaveFileName(self, 'Save the image as ...', "Morph.jpg", "Images (*.jpg)")
+
+                if savePath == "":
                     return
 
-                imageio.imwrite(filepath, self.blendedImage)
+                filename = os.path.basename(savePath)
+                filepath = os.path.dirname(savePath)
+
+                # Multiple Images
+                if self.saveTab_multiRadio.isChecked() and self.saveTab_frameRadio.isChecked():
+                    for index, x in enumerate(self.blendList, 1):
+                        self.saveImage(x, filepath, filename, imageformat, index)
+                # Single Image
+                elif self.saveTab_singleRadio.isChecked():
+                    if self.fullBlendComplete:
+                        currImage = self.blendList[round(((self.alphaSlider.value() / self.alphaSlider.maximum()) / self.fullBlendValue) * self.fullBlendValue / self.fullBlendValue)]
+                    else:
+                        currImage = self.blendedImage
+                    self.saveImage(currImage, filepath, filename, imageformat)
         else:
             self.notificationLine.setText(" Generic Catching Error: Image(s) can't be saved..")
+
+    # Function that handles behavior for individual image output to specified path
+    def saveImage(self, image, filepath, filename, imageformat, seq=0):
+        if seq != 0:
+            filename, filenameExtension = os.path.splitext(filename)
+            filename += '_' + str(seq) + filenameExtension
+        try:
+            cv2.imwrite(filepath + os.path.sep + filename, cv2.cvtColor(image, imageformat))
+            self.validateSave(filepath, filename, seq)
+        except Exception:
+            self.notificationLine.setText(" Generic Catching Error: Image(s) can't be saved..")
+
+    # Function that returns whether morph was successfully saved on user execution
+    def validateSave(self, filepath, filename, seq=0):
+        if seq != 0: var = ' Frame ' + str(seq) + ' '
+        else: var = ' Morph '
+        if os.path.exists(filepath + os.path.sep + filename):
+            self.notificationLine.setText(var + "successfully saved as image (" + filename[-4:] + ")")
+        else:
+            self.notificationLine.setText(" Generic Catching Error: " + var + "can't be saved as (" + filename[-4:] + ")..")
 
     # Function that handles behavior for loading the user's left image
     def loadDataLeft(self, fromDrag=False):
@@ -1754,8 +1911,8 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         cv2.imwrite(self.leftTempPath, tempLeft)
         self.startingImage.setPixmap(QtGui.QPixmap(self.leftTempPath))
         self.startingImage.setScaledContents(1)
-        self.trueLeftSize = (imageio.imread(self.startingImagePath).shape[1], imageio.imread(self.startingImagePath).shape[0])
-        self.leftSize = (imageio.imread(self.leftTempPath).shape[1], imageio.imread(self.leftTempPath).shape[0])
+        self.trueLeftSize = (cv2.imread(self.startingImagePath).shape[1], cv2.imread(self.startingImagePath).shape[0])
+        self.leftSize = (cv2.imread(self.leftTempPath).shape[1], cv2.imread(self.leftTempPath).shape[0])
         self.imageScalar = (self.leftSize[0] / (self.startingImage.geometry().topRight().x() - self.startingImage.geometry().topLeft().x()), self.leftSize[1] / (self.startingImage.geometry().bottomRight().y() - self.startingImage.geometry().topLeft().y()))
 
         # Create local path to check for the image's text file
@@ -1807,8 +1964,8 @@ class MorphingApp(QMainWindow, Ui_MainWindow):
         cv2.imwrite(self.rightTempPath, tempRight)
         self.endingImage.setPixmap(QtGui.QPixmap(self.rightTempPath))
         self.endingImage.setScaledContents(1)
-        self.trueRightSize = (imageio.imread(self.endingImagePath).shape[1], imageio.imread(self.endingImagePath).shape[0])
-        self.rightSize = (imageio.imread(self.rightTempPath).shape[1], imageio.imread(self.rightTempPath).shape[0])
+        self.trueRightSize = (cv2.imread(self.endingImagePath).shape[1], cv2.imread(self.endingImagePath).shape[0])
+        self.rightSize = (cv2.imread(self.rightTempPath).shape[1], cv2.imread(self.rightTempPath).shape[0])
         self.imageScalar = (self.rightSize[0] / (self.endingImage.geometry().topRight().x() - self.endingImage.geometry().topLeft().x()), self.rightSize[1] / (self.endingImage.geometry().bottomRight().y() - self.endingImage.geometry().topLeft().y()))
 
         # Create local path to check for the image's text file
